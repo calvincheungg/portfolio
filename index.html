@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Calvin — Software Engineer</title>
+  <meta name="description" content="Calvin is a software engineer.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Space+Mono:wght@400;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    // Apply the saved theme before first paint so dark mode doesn't flash light.
+    try {
+      const t = (JSON.parse(localStorage.getItem("portfolio-settings")) || {}).theme;
+      const dark = t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+    } catch {}
+  </script>
+</head>
+<body>
+  <main class="hero">
+    <canvas id="stage" aria-label="Interactive toys spelling Calvin. Right-click to choose a different toy."></canvas>
+
+    <header class="overlay top">
+      <a href="calvin-cheung-resume.pdf" id="work-link" target="_blank" rel="noopener">Work</a>
+      <span class="role">Software Engineer</span>
+      <div class="contact">
+        <button class="contact-toggle" id="contact-toggle" type="button" aria-expanded="false" aria-controls="contact-ladder">Contact</button>
+        <div class="ladder" id="contact-ladder">
+          <span class="rope left" aria-hidden="true"></span>
+          <span class="rope right" aria-hidden="true"></span>
+          <ul>
+            <li class="rung"><a href="https://www.linkedin.com/in/calvin007/" target="_blank" rel="noopener">LinkedIn</a></li>
+            <li class="rung"><span>calvincheungx@gmail.com</span></li>
+          </ul>
+        </div>
+      </div>
+    </header>
+
+    <footer class="overlay bottom">
+      <button class="about-toggle" id="about-toggle" type="button" aria-haspopup="dialog" aria-controls="about">About</button>
+      <div class="settings">
+        <button class="settings-toggle" id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings-panel">Settings</button>
+        <div class="settings-panel" id="settings-panel" role="group" aria-label="Settings">
+          <fieldset class="setting">
+            <legend>Theme</legend>
+            <div class="segmented">
+              <label><input type="radio" name="theme" value="light"><span>Light</span></label>
+              <label><input type="radio" name="theme" value="dark"><span>Dark</span></label>
+            </div>
+          </fieldset>
+          <fieldset class="setting">
+            <legend>Graphics</legend>
+            <div class="segmented">
+              <label><input type="radio" name="quality" value="low"><span>Low</span></label>
+              <label><input type="radio" name="quality" value="high"><span>High</span></label>
+            </div>
+          </fieldset>
+          <label class="setting switch-row">
+            <span>Reduce motion</span>
+            <input type="checkbox" name="reduceMotion" class="switch">
+          </label>
+        </div>
+      </div>
+    </footer>
+  </main>
+
+  <div class="toy-menu" id="toy-menu" role="menu" aria-label="Toys"></div>
+
+  <!-- Now playing: keeps music going across toys. Spotify's player goes in the slot. -->
+  <aside class="now-playing" id="now-playing" aria-label="Now playing">
+    <div class="np-head">
+      <span class="np-disc" aria-hidden="true"></span>
+      <span class="np-text">
+        <span class="np-label" id="now-playing-label">Now playing</span>
+        <span class="np-title" id="now-playing-title"></span>
+      </span>
+      <div class="np-controls">
+        <button class="np-btn" id="now-playing-prev" type="button" aria-label="Previous track">
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 2.5v7" /><path d="M9.5 2.5 4.5 6l5 3.5z" /></svg>
+        </button>
+        <button class="np-btn np-toggle" id="now-playing-toggle" type="button" aria-label="Pause">
+          <svg class="i-pause" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2.5v7M8 2.5v7" /></svg>
+          <svg class="i-play" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 2.2 9.8 6l-6.3 3.8z" /></svg>
+        </button>
+        <button class="np-btn" id="now-playing-next" type="button" aria-label="Next track">
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M9 2.5v7" /><path d="M2.5 2.5 7.5 6l-5 3.5z" /></svg>
+        </button>
+      </div>
+      <button class="np-btn" id="now-playing-list" type="button" aria-expanded="false" aria-controls="track-list" aria-label="Show songs">
+        <svg class="np-stroke" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3h5.5M4.5 6h5.5M4.5 9h5.5M2 3h.01M2 6h.01M2 9h.01" /></svg>
+      </button>
+      <button class="np-btn np-minimize" id="now-playing-minimize" type="button" aria-expanded="true" aria-controls="now-playing-embed" aria-label="Minimize player">
+        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" /></svg>
+      </button>
+      <button class="np-btn np-eject" id="now-playing-eject" type="button" aria-label="Eject (stop and close)" title="Eject">
+        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 2.2 10 7H2z" /><path d="M2.5 9.5h7" /></svg>
+      </button>
+    </div>
+    <div class="np-scrub">
+      <span class="np-time" id="now-playing-elapsed">0:00</span>
+      <input class="np-seek" id="now-playing-seek" type="range" min="0" max="0" step="100" value="0" aria-label="Seek">
+      <span class="np-time" id="now-playing-total">0:00</span>
+    </div>
+    <div class="np-embed" id="now-playing-embed"></div>
+  </aside>
+
+  <!-- Song list for the current playlist; opened from the widget or the CD player. -->
+  <section class="track-list" id="track-list" aria-labelledby="track-list-title">
+    <header class="tl-head">
+      <div class="tl-heading">
+        <p class="tl-label" id="track-list-count">Songs</p>
+        <h3 class="tl-title" id="track-list-title"></h3>
+      </div>
+      <button class="np-btn" id="track-list-close" type="button" aria-label="Close song list">
+        <svg class="np-stroke" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3 3 9" /></svg>
+      </button>
+    </header>
+    <ol class="tl-items" id="track-list-items"></ol>
+  </section>
+
+  <dialog class="about" id="about" aria-labelledby="about-title">
+    <div class="about-card">
+      <button class="about-close" id="about-close" type="button" aria-label="Close">Close</button>
+      <h2 id="about-title">About</h2>
+      <p>
+        Calvin is a full-stack software engineer with experience in leading and developing
+        projects end to end. In his spare time, he loves to play tennis, draw, listen to
+        music, and learn a new hobby.
+      </p>
+    </div>
+  </dialog>
+
+  <dialog class="resume" id="resume" aria-labelledby="resume-title">
+    <div class="resume-sheet">
+      <div class="resume-bar">
+        <h2 id="resume-title">Resume</h2>
+        <div class="resume-actions">
+          <a href="calvin-cheung-resume.pdf" download>Download</a>
+          <button class="resume-close" id="resume-close" type="button">Close</button>
+        </div>
+      </div>
+      <div class="resume-pages" id="resume-pages">
+        <p class="resume-status">Loading…</p>
+      </div>
+    </div>
+  </dialog>
+
+  <script type="module" src="main.js"></script>
+  <script type="module" src="contact.js"></script>
+  <script type="module" src="about.js"></script>
+  <script type="module" src="resume.js"></script>
+  <script type="module" src="settings-panel.js"></script>
+  <script type="module" src="tracklist.js"></script>
+</body>
+</html>

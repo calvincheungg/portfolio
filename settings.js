@@ -1,0 +1,70 @@
+// Visitor settings (theme, graphics quality, reduce motion), remembered in
+// this browser. Anything not chosen yet follows the device.
+
+const KEY = "portfolio-settings";
+const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+const systemReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+const isTouch = window.matchMedia("(pointer: coarse)").matches;
+
+function load() {
+  try {
+    return JSON.parse(localStorage.getItem(KEY)) || {};
+  } catch {
+    return {}; // private mode / blocked storage: just use defaults
+  }
+}
+
+const saved = load(); // only what the visitor has actually picked
+const state = {
+  // "light" | "dark" once picked; until then "system" (follows the device).
+  theme: saved.theme ?? "system",
+  quality: saved.quality ?? (isTouch ? "low" : "high"), // "low" | "high"
+  reduceMotion: saved.reduceMotion ?? systemReducedMotion.matches,
+};
+
+const listeners = new Set();
+const notify = (key) => listeners.forEach((fn) => fn(key));
+
+export const getSetting = (key) => state[key];
+
+export function setSetting(key, value) {
+  if (state[key] === value) return;
+  state[key] = value;
+  saved[key] = value;
+  try {
+    localStorage.setItem(KEY, JSON.stringify(saved));
+  } catch {
+    // not saved, but still applies for this visit
+  }
+  if (key === "theme") applyTheme();
+  notify(key);
+}
+
+/** Subscribe to changes; returns an unsubscribe function. */
+export function onSettingChange(fn) {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+export const reduceMotion = () => state.reduceMotion;
+
+/** The theme actually showing: "light" or "dark". */
+export const theme = () =>
+  state.theme === "system" ? (systemDark.matches ? "dark" : "light") : state.theme;
+
+function applyTheme() {
+  document.documentElement.dataset.theme = theme();
+}
+
+systemDark.addEventListener("change", () => {
+  if (state.theme !== "system") return;
+  applyTheme();
+  notify("theme");
+});
+systemReducedMotion.addEventListener("change", () => {
+  if ("reduceMotion" in saved) return;
+  state.reduceMotion = systemReducedMotion.matches;
+  notify("reduceMotion");
+});
+
+applyTheme();
