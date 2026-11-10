@@ -42,15 +42,17 @@
 <body>
   <main class="hero">
     <canvas id="stage" aria-label="Interactive toys spelling Calvin. Right-click to choose a different toy."></canvas>
+    <!-- Shown instead of the canvas if the 3D scene can't start (see src/main.js). -->
+    <img id="stage-fallback" alt="Wooden toy blocks spelling CALVIN" width="2200" height="520" hidden>
 
     <header class="overlay top">
       <div class="work">
         <button class="text-btn" id="work-toggle" type="button" aria-expanded="false" aria-controls="work-menu">Work</button>
         <nav class="work-menu card" id="work-menu" aria-label="Work">
-          <a class="work-item" href="calvin-cheung-resume.pdf" id="resume-link" target="_blank" rel="noopener">Resume</a>
+          <a class="work-item" href="calvin-cheung-resume.pdf" id="resume-link" data-track="/resume" target="_blank" rel="noopener">Resume</a>
           <p class="work-heading">Projects</p>
           <ul>
-            <li><a class="work-item" href="https://beatmap-rho.vercel.app/" target="_blank" rel="noopener">BeatMap <span class="arrow" aria-hidden="true">↗</span></a></li>
+            <li><a class="work-item" href="https://beatmap-rho.vercel.app/" data-track="/projects/beatmap" target="_blank" rel="noopener">BeatMap <span class="arrow" aria-hidden="true">↗</span></a></li>
           </ul>
         </nav>
       </div>
@@ -61,9 +63,9 @@
           <span class="rope left" aria-hidden="true"></span>
           <span class="rope right" aria-hidden="true"></span>
           <ul>
-            <li class="rung"><a href="https://www.linkedin.com/in/calvin007/" target="_blank" rel="noopener">LinkedIn</a></li>
-            <li class="rung"><a href="https://github.com/calvincheungg" target="_blank" rel="noopener">GitHub</a></li>
-            <li class="rung"><a href="mailto:calvincheungx@gmail.com" id="email-copy" title="Click to copy">calvincheungx@gmail.com</a></li>
+            <li class="rung"><a href="https://www.linkedin.com/in/calvin007/" data-track="/contact/linkedin" target="_blank" rel="noopener">LinkedIn</a></li>
+            <li class="rung"><a href="https://github.com/calvincheungg" data-track="/contact/github" target="_blank" rel="noopener">GitHub</a></li>
+            <li class="rung"><a href="mailto:calvincheungx@gmail.com" id="email-copy" data-track="/contact/email" title="Click to copy">calvincheungx@gmail.com</a></li>
           </ul>
         </div>
       </div>

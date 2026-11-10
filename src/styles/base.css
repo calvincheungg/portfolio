@@ -93,6 +93,21 @@ body {
   touch-action: none;
 }
 
+/* Still picture of the blocks, used when the 3D scene can't start. */
+#stage-fallback {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(820px, 88vw);
+  height: auto;
+  transform: translate(-50%, -50%);
+}
+
+#stage-fallback[hidden],
+#stage[hidden] {
+  display: none;
+}
+
 #stage.grab { cursor: grab; }
 #stage.grabbing { cursor: grabbing; }
 #stage.point { cursor: pointer; }

@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Page not found — Calvin Cheung</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Space+Mono&display=swap" rel="stylesheet">
+  <script>
+    // Same theme as the main site (saved setting, else the system's).
+    try {
+      const t = (JSON.parse(localStorage.getItem("portfolio-settings")) || {}).theme;
+      const dark = t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+    } catch {}
+  </script>
+  <style>
+    :root {
+      --bg: #f4f1ec;
+      --fg: #1d1b18;
+      --muted: #8a847b;
+      --shadow: rgba(60, 40, 20, 0.22);
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #1b1916; --fg: #eee8df; --muted: #8f877c; --shadow: rgba(0, 0, 0, 0.55);
+        color-scheme: dark;
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #1b1916; --fg: #eee8df; --muted: #8f877c; --shadow: rgba(0, 0, 0, 0.55);
+      color-scheme: dark;
+    }
+
+    * { margin: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: "Space Mono", ui-monospace, monospace;
+      display: grid;
+      place-items: center;
+      padding: 24px 16px;
+      overflow: hidden;
+    }
+    main { display: grid; justify-items: center; text-align: center; }
+
+    /* The block lands one block-width left of centre, then tips over its right
+       edge so it finishes centred. */
+    .scene {
+      --s: 120px;
+      position: relative;
+      width: var(--s);
+      height: var(--s);
+      margin-bottom: 44px;
+    }
+    .floor-shadow {
+      position: absolute;
+      left: calc(var(--s) * -0.95);
+      width: calc(var(--s) * 0.9);
+      bottom: -10px;
+      height: 16px;
+      border-radius: 50%;
+      background: radial-gradient(closest-side, var(--shadow), transparent);
+      animation: shadow 1.6s ease-out both;
+    }
+
+    /* Wooden block, matching the toys on the home page. */
+    .block {
+      position: absolute;
+      left: calc(var(--s) * -1);
+      bottom: 0;
+      width: var(--s);
+      height: var(--s);
+      border-radius: calc(var(--s) * 0.08);
+      background:
+        repeating-linear-gradient(172deg, transparent 0 9px, rgba(110, 62, 24, 0.08) 9px 12px, transparent 12px 21px, rgba(110, 62, 24, 0.13) 21px 23px),
+        linear-gradient(135deg, hsl(33, 52%, 75%), hsl(30, 48%, 63%));
+      box-shadow:
+        inset 0 2px 0 rgba(255, 240, 215, 0.55),
+        inset 0 -4px 0 rgba(90, 50, 20, 0.22);
+      display: grid;
+      place-items: center;
+      transform-origin: 100% 100%; /* tips over its bottom-right edge */
+      animation: drop 0.55s cubic-bezier(0.55, 0, 1, 0.45) both, topple 1.05s 0.55s both;
+    }
+    .block::before, .block::after {
+      content: "";
+      position: absolute;
+      inset: 11%;
+      border-radius: calc(var(--s) * 0.05);
+      border: calc(var(--s) * 0.018) solid rgba(100, 55, 20, 0.35);
+    }
+    .block::after { transform: translate(2px, 2px); border-color: rgba(255, 240, 215, 0.35); }
+    .block span {
+      font-family: "Abril Fatface", Georgia, serif;
+      font-size: calc(var(--s) * 0.58);
+      line-height: 1;
+      margin-top: calc(var(--s) * 0.04);
+      color: #c0392b;
+      text-shadow: 1.5px 1.5px 0 rgba(255, 240, 215, 0.5), -1px -1px 0 rgba(60, 30, 10, 0.3);
+    }
+
+    /* Falls in, lands, then tips onto its side with a small rock before settling. */
+    @keyframes drop {
+      from { translate: 0 -70vh; }
+      to { translate: 0 0; }
+    }
+    @keyframes topple {
+      0% { rotate: 0deg; animation-timing-function: ease-in; }
+      12% { rotate: 6deg; animation-timing-function: ease-in-out; }
+      20% { rotate: 2deg; animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.5); }
+      62% { rotate: 90deg; animation-timing-function: ease-out; }
+      76% { rotate: 82deg; animation-timing-function: ease-in; }
+      88% { rotate: 90deg; animation-timing-function: ease-out; }
+      94% { rotate: 88deg; }
+      100% { rotate: 90deg; }
+    }
+    @keyframes shadow {
+      0% { opacity: 0; transform: scaleX(0.3); }
+      35% { opacity: 1; transform: none; }
+      55% { transform: none; }
+      100% { opacity: 1; transform: translateX(var(--s)); }
+    }
+
+    h1 {
+      font-family: "Abril Fatface", Georgia, serif;
+      font-weight: 400;
+      font-size: clamp(34px, 7vw, 48px);
+      margin-bottom: 10px;
+    }
+    p { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
+    a {
+      color: var(--fg);
+      font-size: 14px;
+      letter-spacing: 0.02em;
+      text-decoration: none;
+      opacity: 0.7;
+      transition: opacity 0.15s;
+    }
+    a:hover, a:focus-visible { opacity: 1; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .block { animation: none; rotate: 90deg; }
+      .floor-shadow { animation: none; transform: translateX(var(--s)); }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="scene" aria-hidden="true">
+      <div class="floor-shadow"></div>
+      <div class="block"><span>?</span></div>
+    </div>
+    <h1>Page not found</h1>
+    <p>This page toppled over. It may have moved, or never existed.</p>
+    <a href="/">← Back to the toys</a>
+  </main>
+</body>
+</html>
