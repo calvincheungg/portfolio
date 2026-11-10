@@ -37,3 +37,31 @@ createPopover({
   show: () => (reduceMotion() ? unroll.progress(1).pause() : unroll.timeScale(1).play()),
   hide: () => (reduceMotion() ? unroll.progress(0).pause() : unroll.timeScale(2.2).reverse()),
 });
+
+// Clicking the email copies it (most visitors have no mail app set up) and
+// briefly shows "Copied". If copying isn't allowed, the mailto: link opens.
+const email = document.getElementById("email-copy");
+const announce = document.createElement("span");
+announce.className = "visually-hidden";
+announce.setAttribute("aria-live", "polite");
+email.after(announce);
+let copiedTimer;
+
+email.addEventListener("click", async (e) => {
+  if (e.metaKey || e.ctrlKey || e.shiftKey || !navigator.clipboard) return;
+  e.preventDefault();
+  const address = email.href.replace(/^mailto:/, "");
+  try {
+    await navigator.clipboard.writeText(address);
+  } catch {
+    location.href = email.href;
+    return;
+  }
+  email.classList.add("copied");
+  announce.textContent = "Email copied";
+  clearTimeout(copiedTimer);
+  copiedTimer = setTimeout(() => {
+    email.classList.remove("copied");
+    announce.textContent = "";
+  }, 1600);
+});

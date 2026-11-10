@@ -39,6 +39,10 @@
   color: var(--card-text);
 }
 
+.about-card p + p {
+  margin-top: 12px;
+}
+
 .about-close {
   position: absolute;
   top: 22px;

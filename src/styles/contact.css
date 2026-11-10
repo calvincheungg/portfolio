@@ -65,3 +65,18 @@
     inset 0 -2px 0 rgba(90, 50, 20, 0.25),
     0 6px 14px rgb(var(--shadow-rgb) / calc(0.24 * var(--shadow-k)));
 }
+
+/* Email rung: keeps its width while showing "Copied". */
+.overlay .rung a.copied {
+  position: relative;
+  color: transparent;
+}
+
+.overlay .rung a.copied::after {
+  content: "Copied ✓";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #3b2410;
+}
