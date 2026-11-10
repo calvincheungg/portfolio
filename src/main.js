@@ -1,6 +1,7 @@
 // Entry point.
 import "./settings.js"; // applies the saved theme
 import "./scene/index.js"; // the 3D toys
+import "./ui/work-menu.js";
 import "./ui/contact.js";
 import "./ui/about.js";
 import "./ui/resume.js";

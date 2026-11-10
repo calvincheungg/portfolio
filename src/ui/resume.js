@@ -10,7 +10,7 @@ import workerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 
 const PDF_URL = "calvin-cheung-resume.pdf";
 
-const link = document.getElementById("work-link");
+const link = document.getElementById("resume-link");
 const dialog = document.getElementById("resume");
 const sheet = dialog.querySelector(".resume-sheet");
 const pagesEl = document.getElementById("resume-pages");

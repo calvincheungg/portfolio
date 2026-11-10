@@ -23,7 +23,16 @@
     <canvas id="stage" aria-label="Interactive toys spelling Calvin. Right-click to choose a different toy."></canvas>
 
     <header class="overlay top">
-      <a class="text-btn" href="calvin-cheung-resume.pdf" id="work-link" target="_blank" rel="noopener">Work</a>
+      <div class="work">
+        <button class="text-btn" id="work-toggle" type="button" aria-expanded="false" aria-controls="work-menu">Work</button>
+        <nav class="work-menu card" id="work-menu" aria-label="Work">
+          <a class="work-item" href="calvin-cheung-resume.pdf" id="resume-link" target="_blank" rel="noopener">Resume</a>
+          <p class="work-heading">Projects</p>
+          <ul>
+            <li><a class="work-item" href="https://beatmap-rho.vercel.app/" target="_blank" rel="noopener">BeatMap <span class="arrow" aria-hidden="true">↗</span></a></li>
+          </ul>
+        </nav>
+      </div>
       <span class="role">Software Engineer</span>
       <div class="contact">
         <button class="text-btn" id="contact-toggle" type="button" aria-expanded="false" aria-controls="contact-ladder">Contact</button>
@@ -32,6 +41,7 @@
           <span class="rope right" aria-hidden="true"></span>
           <ul>
             <li class="rung"><a href="https://www.linkedin.com/in/calvin007/" target="_blank" rel="noopener">LinkedIn</a></li>
+            <li class="rung"><a href="https://github.com/calvincheungg" target="_blank" rel="noopener">GitHub</a></li>
             <li class="rung"><span>calvincheungx@gmail.com</span></li>
           </ul>
         </div>

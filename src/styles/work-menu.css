@@ -1,0 +1,60 @@
+/* ---------- Work drop-down ---------- */
+
+.work {
+  position: relative;
+}
+
+.work-menu {
+  position: absolute;
+  left: -10px;
+  top: calc(100% + 12px);
+  min-width: 200px;
+  padding: 8px;
+  border-radius: 12px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  pointer-events: auto;
+  visibility: hidden; /* GSAP reveals it */
+}
+
+.work-menu ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.overlay .work-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--fg);
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.overlay .work-item:hover,
+.overlay .work-item:focus-visible {
+  background: var(--hover);
+}
+
+.work-item .arrow {
+  color: var(--muted);
+  transition: transform 0.15s;
+}
+
+.work-item:hover .arrow {
+  transform: translate(2px, -2px);
+}
+
+.work-heading {
+  margin: 10px 10px 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hover);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
