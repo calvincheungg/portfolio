@@ -1,7 +1,6 @@
 // Settings shared by the stage and every toy.
 
 export const NAME = "CALVIN";
-export const LETTER_FONT = '"Abril Fatface", Georgia, serif';
 
 // Width (world units) the camera keeps in view, so the name always fits.
 export const SCENE_WIDTH = 7.1;

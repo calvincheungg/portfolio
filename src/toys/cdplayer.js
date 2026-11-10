@@ -2,17 +2,18 @@ import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { gsap } from "gsap";
-import { NAME, LETTER_FONT } from "./shared.js";
-import { PLAYLISTS } from "../playlists.js";
-import { music } from "../music.js";
+import { NAME } from "./shared.js";
+import { canvasTexture, fitText } from "./textures.js";
+import { PLAYLISTS } from "../../playlists.js";
+import { music } from "../music/music.js";
+import { openTrackList } from "../music/tracklist.js";
 import { reduceMotion } from "../settings.js";
-import { openTrackList } from "../tracklist.js";
+import { fonts } from "../lib/fonts.js";
+import { formatLength } from "../lib/format.js";
 
 // Portable CD player (round, Discman-style) propped up facing the viewer, with
 // a row of CD cases beside it, one per playlist. Click a case to load its disc;
 // the buttons on the lid play/pause and stop. Audio comes from music.js.
-
-const UI_FONT = '"Space Mono", ui-monospace, monospace';
 
 const R = 1.45; // player radius
 const BODY_H = 0.36;
@@ -39,24 +40,6 @@ const SHELF_PAD = 0.12; // inside the side posts
 const PULL_OUT = 0.35; // how far the loaded CD's case slides forward
 
 // ---------- Canvas textures ----------
-
-function canvasTexture(size, draw) {
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = size;
-  draw(canvas.getContext("2d"), size);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 8;
-  return texture;
-}
-
-// Shrink the font until the text fits.
-function fitText(c, text, x, y, maxWidth, size, font) {
-  let px = size;
-  do c.font = `${px--}px ${font}`;
-  while (c.measureText(text).width > maxWidth && px > 8);
-  c.fillText(text, x, y);
-}
 
 // Lid: brushed silver ring with "CALVIN" printed on it and a see-through window.
 // CircleGeometry maps the texture across its diameter; after laying it flat the
@@ -100,9 +83,9 @@ function lidTexture({ printed = true } = {}) {
     c.textAlign = "center";
     c.textBaseline = "middle";
     const band = mid - w; // ring width between window and edge
-    fitText(c, NAME, mid, mid + w + band * 0.36, mid * 0.5, 72, LETTER_FONT);
+    fitText(c, NAME, mid, mid + w + band * 0.36, mid * 0.5, 72, fonts.letter);
     c.fillStyle = "#4b4f57";
-    fitText(c, "PORTABLE CD PLAYER", mid, mid + w + band * 0.66, mid * 0.62, 30, UI_FONT);
+    fitText(c, "PORTABLE CD PLAYER", mid, mid + w + band * 0.66, mid * 0.62, 30, fonts.ui);
   });
 }
 
@@ -156,19 +139,11 @@ function labelTexture(playlist) {
     c.fillStyle = "#ffffff";
     c.textAlign = "center";
     c.textBaseline = "middle";
-    fitText(c, playlist.title, mid, mid * 0.52, s * 0.62, 110, LETTER_FONT);
+    fitText(c, playlist.title, mid, mid * 0.52, s * 0.62, 110, fonts.letter);
     c.globalAlpha = 0.85;
-    fitText(c, playlist.subtitle ?? "", mid, mid * 0.72, s * 0.55, 36, UI_FONT);
-    fitText(c, `${NAME} · MIX`, mid, mid * 1.55, s * 0.4, 34, UI_FONT);
+    fitText(c, playlist.subtitle ?? "", mid, mid * 0.72, s * 0.55, 36, fonts.ui);
+    fitText(c, `${NAME} · MIX`, mid, mid * 1.55, s * 0.4, 34, fonts.ui);
   });
-}
-
-// "1 hr 12 min" / "47 min" from milliseconds.
-function formatLength(ms) {
-  const minutes = Math.round(ms / 60000);
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return h ? `${h} hr ${m} min` : `${m} min`;
 }
 
 // Front cover of a CD case.
@@ -189,13 +164,13 @@ function coverTexture(playlist) {
     c.fillStyle = "#ffffff";
     c.textAlign = "left";
     c.textBaseline = "top";
-    fitText(c, playlist.title, 70, 90, s - 140, 150, LETTER_FONT);
+    fitText(c, playlist.title, 70, 90, s - 140, 150, fonts.letter);
     c.globalAlpha = 0.85;
-    fitText(c, playlist.subtitle ?? "", 74, 270, s - 150, 44, UI_FONT);
+    fitText(c, playlist.subtitle ?? "", 74, 270, s - 150, 44, fonts.ui);
     c.textBaseline = "bottom";
     // Total running time in the bottom corner (left blank if the track list
     // couldn't be fetched).
-    if (length) fitText(c, formatLength(length), 74, s - 70, s * 0.6, 58, UI_FONT);
+    if (length) fitText(c, formatLength(length), 74, s - 70, s * 0.6, 58, fonts.ui);
   });
 }
 
@@ -471,6 +446,8 @@ export function createCdPlayer({ scene, renderer }) {
   });
 
   let spin = 0; // current disc speed, eased toward the target
+  // Everything that tweens (lid, disc, cases, buttons).
+  const animated = [lid.rotation, disc.scale, ...cases.map((c) => c.position), ...buttons.map((b) => b.position)];
 
   return {
     cursor: "pointer",
@@ -495,10 +472,12 @@ export function createCdPlayer({ scene, renderer }) {
       return { move() {}, release() {} };
     },
 
+    // Something to redraw while the disc spins or anything is animating.
     update(dt) {
       const playing = !!music.state.playlist && !music.state.isPaused && disc.parent === tray;
       spin += ((playing ? SPIN_SPEED : 0) - spin) * Math.min(1, dt * 3);
       disc.rotation.y += spin * dt;
+      return spin > 0.001 || busy || animated.some((target) => gsap.isTweening(target));
     },
 
     dispose() {

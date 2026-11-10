@@ -1,7 +1,9 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import * as CANNON from "cannon-es";
-import { NAME, LETTER_FONT, BACK_Z, FRONT_Z } from "./shared.js";
+import { NAME, BACK_Z, FRONT_Z } from "./shared.js";
+import { canvasTexture, roundRect } from "./textures.js";
+import { fonts } from "../lib/fonts.js";
 
 const LETTER_COLORS = ["#c0392b", "#2c6e9b", "#3f7d4e", "#d08a1e", "#7a4b8c", "#c0392b"];
 const SIZE = 1; // block edge length in world units
@@ -34,77 +36,62 @@ function rand(seed) {
   };
 }
 
-function roundRect(c, x, y, w, h, r) {
-  c.beginPath();
-  c.moveTo(x + r, y);
-  c.arcTo(x + w, y, x + w, y + h, r);
-  c.arcTo(x + w, y + h, x, y + h, r);
-  c.arcTo(x, y + h, x, y, r);
-  c.arcTo(x, y, x + w, y, r);
-  c.closePath();
-}
-
 function makeFaceTexture(renderer, letter, color, seed) {
-  const size = 512;
-  const tex = document.createElement("canvas");
-  tex.width = tex.height = size;
-  const c = tex.getContext("2d");
-  const rnd = rand(seed * 9973 + 1);
+  const anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return canvasTexture(512, (c, size) => {
+    const rnd = rand(seed * 9973 + 1);
 
-  // Base wood tone with slight variation per face.
-  const hue = 30 + rnd() * 6;
-  const light = 66 + rnd() * 6;
-  const grad = c.createLinearGradient(0, 0, size, size);
-  grad.addColorStop(0, `hsl(${hue}, 52%, ${light + 5}%)`);
-  grad.addColorStop(1, `hsl(${hue - 3}, 48%, ${light - 5}%)`);
-  c.fillStyle = grad;
-  c.fillRect(0, 0, size, size);
+    // Base wood tone with slight variation per face.
+    const hue = 30 + rnd() * 6;
+    const light = 66 + rnd() * 6;
+    const grad = c.createLinearGradient(0, 0, size, size);
+    grad.addColorStop(0, `hsl(${hue}, 52%, ${light + 5}%)`);
+    grad.addColorStop(1, `hsl(${hue - 3}, 48%, ${light - 5}%)`);
+    c.fillStyle = grad;
+    c.fillRect(0, 0, size, size);
 
-  // Grain.
-  const lines = 22;
-  for (let i = 0; i < lines; i++) {
-    const y0 = (i / lines) * size * 1.2 - size * 0.1;
-    const amp = size * (0.01 + rnd() * 0.03);
-    const freq = 1.5 + rnd() * 2;
-    const phase = rnd() * Math.PI * 2;
-    c.beginPath();
-    for (let x = 0; x <= size; x += 4) {
-      const y = y0 + Math.sin((x / size) * freq * Math.PI + phase) * amp;
-      x === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+    // Grain.
+    const lines = 22;
+    for (let i = 0; i < lines; i++) {
+      const y0 = (i / lines) * size * 1.2 - size * 0.1;
+      const amp = size * (0.01 + rnd() * 0.03);
+      const freq = 1.5 + rnd() * 2;
+      const phase = rnd() * Math.PI * 2;
+      c.beginPath();
+      for (let x = 0; x <= size; x += 4) {
+        const y = y0 + Math.sin((x / size) * freq * Math.PI + phase) * amp;
+        x === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+      }
+      c.strokeStyle = `rgba(110, 62, 24, ${0.06 + rnd() * 0.12})`;
+      c.lineWidth = 1.5 + rnd() * 4;
+      c.stroke();
     }
-    c.strokeStyle = `rgba(110, 62, 24, ${0.06 + rnd() * 0.12})`;
-    c.lineWidth = 1.5 + rnd() * 4;
+
+    // Classic raised border panel.
+    const inset = size * 0.11;
+    const r = size * 0.05;
+    c.lineWidth = size * 0.018;
+    roundRect(c, inset, inset, size - inset * 2, size - inset * 2, r);
+    c.strokeStyle = "rgba(100, 55, 20, 0.35)";
     c.stroke();
-  }
+    roundRect(c, inset + 4, inset + 4, size - inset * 2, size - inset * 2, r);
+    c.strokeStyle = "rgba(255, 240, 215, 0.35)";
+    c.stroke();
 
-  // Classic raised border panel.
-  const inset = size * 0.11;
-  const r = size * 0.05;
-  c.lineWidth = size * 0.018;
-  roundRect(c, inset, inset, size - inset * 2, size - inset * 2, r);
-  c.strokeStyle = "rgba(100, 55, 20, 0.35)";
-  c.stroke();
-  roundRect(c, inset + 4, inset + 4, size - inset * 2, size - inset * 2, r);
-  c.strokeStyle = "rgba(255, 240, 215, 0.35)";
-  c.stroke();
+    // Painted letter with a subtle carved shadow.
+    c.font = `${Math.round(size * 0.58)}px ${fonts.letter}`;
+    c.textAlign = "center";
+    c.textBaseline = "middle";
+    const lx = size / 2;
+    const ly = size / 2 + size * 0.03;
+    c.fillStyle = "rgba(255, 240, 215, 0.5)";
+    c.fillText(letter, lx + size * 0.012, ly + size * 0.012);
+    c.fillStyle = "rgba(60, 30, 10, 0.35)";
+    c.fillText(letter, lx - size * 0.01, ly - size * 0.01);
+    c.fillStyle = color;
+    c.fillText(letter, lx, ly);
 
-  // Painted letter with a subtle carved shadow.
-  c.font = `${Math.round(size * 0.58)}px ${LETTER_FONT}`;
-  c.textAlign = "center";
-  c.textBaseline = "middle";
-  const lx = size / 2;
-  const ly = size / 2 + size * 0.03;
-  c.fillStyle = "rgba(255, 240, 215, 0.5)";
-  c.fillText(letter, lx + size * 0.012, ly + size * 0.012);
-  c.fillStyle = "rgba(60, 30, 10, 0.35)";
-  c.fillText(letter, lx - size * 0.01, ly - size * 0.01);
-  c.fillStyle = color;
-  c.fillText(letter, lx, ly);
-
-  const texture = new THREE.CanvasTexture(tex);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-  return texture;
+  }, { anisotropy });
 }
 
 // ---------- Toy ----------
@@ -222,12 +209,16 @@ export function createBlocks({ scene, world, camera, renderer, bounds }) {
       );
     },
 
+    // Returns false once every block has fallen asleep (nothing to redraw).
     update() {
       rescueStrays();
+      let moving = false;
       for (const { mesh, body } of blocks) {
         mesh.position.copy(body.position);
         mesh.quaternion.copy(body.quaternion);
+        if (body.sleepState !== CANNON.Body.SLEEPING) moving = true;
       }
+      return moving;
     },
 
     dispose() {

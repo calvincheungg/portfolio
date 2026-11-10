@@ -1,5 +1,5 @@
 import { gsap } from "gsap";
-import { reduceMotion } from "./settings.js";
+import { createDialog } from "./dialog.js";
 // Legacy build: the standard one relies on JavaScript features most browsers
 // don't have yet (e.g. Map.getOrInsertComputed); this one includes fallbacks.
 import workerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
@@ -18,7 +18,6 @@ const closeBtn = document.getElementById("resume-close");
 
 let pdfPromise = null;
 let renderedWidth = 0;
-let closing = false;
 
 function loadPdf() {
   pdfPromise ??= import("pdfjs-dist/legacy/build/pdf.min.mjs").then((pdfjs) => {
@@ -86,47 +85,32 @@ async function renderPages() {
   pagesEl.replaceChildren(...pages);
 }
 
-function open(e) {
+const resume = createDialog(dialog, {
+  onOpen: renderPages,
+  show() {
+    gsap.killTweensOf([dialog, sheet]);
+    gsap.fromTo(dialog, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power1.out" });
+    // Slides up like a sheet of paper, settling with a small bounce.
+    gsap.fromTo(
+      sheet,
+      { y: 80, rotation: 1.5, autoAlpha: 0 },
+      { y: 0, rotation: 0, autoAlpha: 1, duration: 0.8, ease: "elastic.out(1, 0.7)" }
+    );
+  },
+  hide(done) {
+    gsap.killTweensOf([dialog, sheet]);
+    gsap.to(sheet, { y: 60, autoAlpha: 0, duration: 0.22, ease: "power2.in" });
+    gsap.to(dialog, { opacity: 0, duration: 0.28, ease: "power1.in", onComplete: done });
+  },
+});
+
+link.addEventListener("click", (e) => {
   // Let modified clicks (new tab, etc.) open the PDF on its own.
   if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
   e.preventDefault();
-  if (dialog.open) return;
-  closing = false;
-  dialog.showModal();
-  renderPages();
-  if (reduceMotion()) return;
-
-  gsap.killTweensOf([dialog, sheet]);
-  gsap.fromTo(dialog, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power1.out" });
-  // Slides up like a sheet of paper, settling with a small bounce.
-  gsap.fromTo(
-    sheet,
-    { y: 80, rotation: 1.5, autoAlpha: 0 },
-    { y: 0, rotation: 0, autoAlpha: 1, duration: 0.8, ease: "elastic.out(1, 0.7)" }
-  );
-}
-
-function close() {
-  if (!dialog.open || closing) return;
-  closing = true;
-  if (reduceMotion()) {
-    dialog.close();
-    return;
-  }
-  gsap.killTweensOf([dialog, sheet]);
-  gsap.to(sheet, { y: 60, autoAlpha: 0, duration: 0.22, ease: "power2.in" });
-  gsap.to(dialog, { opacity: 0, duration: 0.28, ease: "power1.in", onComplete: () => dialog.close() });
-}
-
-link.addEventListener("click", open);
-closeBtn.addEventListener("click", close);
-dialog.addEventListener("cancel", (e) => {
-  e.preventDefault();
-  close();
+  resume.open();
 });
-dialog.addEventListener("click", (e) => {
-  if (e.target === dialog) close();
-});
+closeBtn.addEventListener("click", resume.close);
 
 // Redraw sharply if the window is resized while it's open.
 let resizeTimer;

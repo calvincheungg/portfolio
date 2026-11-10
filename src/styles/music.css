@@ -1,0 +1,442 @@
+/* ---------- Now playing (Spotify) ---------- */
+
+/* Centred along the bottom, between About and Settings. (GSAP applies the
+   -50% horizontal shift, since it owns this element's transform.) */
+.now-playing {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  z-index: 5;
+  width: 380px; /* room for the controls; Spotify's player clips below ~320px */
+  padding: 10px;
+  border-radius: 14px;
+  visibility: hidden; /* GSAP reveals it */
+}
+
+.np-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 2px 2px 4px;
+}
+
+/* Little CD that spins while music plays. */
+.np-disc {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, var(--card) 0 3px, rgba(200, 204, 210, 0.9) 3.5px 7px, transparent 7.5px),
+    conic-gradient(from 30deg, var(--label), color-mix(in srgb, var(--label) 60%, white), var(--label));
+  box-shadow: inset 0 0 0 1px var(--divider);
+}
+
+.np-disc.spinning {
+  animation: np-spin 1.6s linear infinite;
+}
+
+@keyframes np-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .np-disc.spinning { animation: none; }
+}
+
+.np-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  font-family: var(--font-ui);
+}
+
+.np-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.np-title {
+  font-size: 13px;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.np-btn {
+  display: grid;
+  place-items: center;
+  height: 26px;
+  min-width: 26px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--fg);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.np-btn:hover,
+.np-btn:focus-visible {
+  opacity: 1;
+  background: var(--hover);
+  outline: none;
+}
+
+/* Icon buttons (list, eject, close): filled shapes, or outline-only with .np-stroke. */
+.np-btn svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.np-btn svg.np-stroke {
+  fill: none;
+}
+
+.np-btn[aria-expanded="true"]:not(.np-minimize) {
+  opacity: 1;
+  background: var(--hover);
+}
+
+/* Previous / play-pause / next. */
+.np-controls {
+  display: flex;
+  gap: 2px;
+}
+
+.np-controls svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.np-toggle {
+  opacity: 0.9;
+}
+
+.np-toggle .i-play,
+.now-playing.is-paused .np-toggle .i-pause {
+  display: none;
+}
+
+.now-playing.is-paused .np-toggle .i-play {
+  display: block;
+}
+
+.np-btn:disabled {
+  opacity: 0.25;
+  cursor: default;
+  background: none;
+}
+
+.np-minimize svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.25s;
+}
+
+/* Collapsed: chevron flips to point up ("expand"). */
+.np-minimize[aria-expanded="false"] svg {
+  transform: rotate(180deg);
+}
+
+/* Our own scrubber (Spotify's is inside its frame, which we can't restyle).
+   Stays visible when the widget is minimized. */
+.np-scrub {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px 2px;
+}
+
+.np-time {
+  flex: none;
+  min-width: 34px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.np-time:last-child {
+  text-align: right;
+}
+
+.np-seek {
+  --progress: 0%;
+  flex: 1;
+  height: 18px; /* generous hit area around the thin track */
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+/* Track: filled up to --progress (set by music.js). */
+.np-seek::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--fg) var(--progress), var(--divider) var(--progress));
+  transition: height 0.15s;
+}
+
+.np-seek::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--fg) var(--progress), var(--divider) var(--progress));
+}
+
+.np-seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -4px; /* centre on the 6px track */
+  border-radius: 50%;
+  background: var(--fg);
+  border: 2px solid var(--card);
+  box-shadow: 0 1px 3px rgb(var(--shadow-rgb) / calc(0.3 * var(--shadow-k)));
+  transition: transform 0.15s;
+}
+
+.np-seek::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--fg);
+  border: 2px solid var(--card);
+}
+
+.np-seek:hover::-webkit-slider-thumb,
+.np-seek:active::-webkit-slider-thumb {
+  transform: scale(1.2);
+}
+
+.np-seek:focus-visible {
+  outline: none;
+}
+
+.np-seek:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+.np-seek:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* Height is animated by music.js; the Spotify frame stays loaded (and keeps
+   playing) while collapsed. */
+.np-embed {
+  height: 90px; /* 10px gap + 80px player */
+  padding-top: 10px;
+  overflow: hidden;
+}
+
+.np-embed iframe {
+  border-radius: 10px;
+}
+
+.np-embed iframe {
+  display: block;
+  border: 0;
+}
+
+/* ---------- Song list ---------- */
+
+/* Centred above the now-playing widget (bottom set by tracklist.js). */
+.track-list {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  z-index: 6;
+  width: 380px;
+  max-height: min(420px, 55vh);
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  overflow: hidden;
+  visibility: hidden; /* GSAP reveals it */
+}
+
+.tl-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 10px 10px 16px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.tl-heading {
+  min-width: 0;
+}
+
+.tl-label {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.tl-title {
+  font-family: var(--font-letter);
+  font-weight: 400;
+  font-size: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tl-items {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.tl-item {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tl-item:hover,
+.tl-item:focus-visible {
+  background: var(--hover);
+  outline: none;
+}
+
+.tl-item.is-current {
+  background: var(--hover);
+}
+
+.tl-num {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.tl-text {
+  display: grid;
+  min-width: 0;
+}
+
+.tl-song,
+.tl-artist {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tl-song {
+  font-size: 14px;
+}
+
+.tl-item.is-current .tl-song {
+  font-weight: 600;
+}
+
+.tl-artist {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.tl-dur {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The current song swaps its number for little equaliser bars. */
+.tl-bars {
+  display: none;
+  height: 12px;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+}
+
+.tl-bars i {
+  width: 3px;
+  height: 40%;
+  border-radius: 1px;
+  background: var(--fg);
+}
+
+.tl-item.is-current .tl-index {
+  display: none;
+}
+
+.tl-item.is-current .tl-bars {
+  display: flex;
+}
+
+.tl-item.is-playing .tl-bars i {
+  animation: tl-bounce 0.9s ease-in-out infinite;
+}
+
+.tl-item.is-playing .tl-bars i:nth-child(2) { animation-delay: -0.3s; }
+.tl-item.is-playing .tl-bars i:nth-child(3) { animation-delay: -0.6s; }
+
+@keyframes tl-bounce {
+  0%, 100% { height: 30%; }
+  50% { height: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tl-item.is-playing .tl-bars i { animation: none; height: 70%; }
+}
+
+.tl-empty {
+  padding: 24px 16px;
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+@media (max-width: 600px) {
+  /* Phones: full width, lifted above About / Settings. */
+  .now-playing { width: calc(100% - 32px); bottom: 60px; }
+  .track-list { width: calc(100% - 32px); }
+}

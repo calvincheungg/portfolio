@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Space+Mono:wght@400;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="/src/styles/index.css">
   <script>
     // Apply the saved theme before first paint so dark mode doesn't flash light.
     try {
@@ -23,10 +23,10 @@
     <canvas id="stage" aria-label="Interactive toys spelling Calvin. Right-click to choose a different toy."></canvas>
 
     <header class="overlay top">
-      <a href="calvin-cheung-resume.pdf" id="work-link" target="_blank" rel="noopener">Work</a>
+      <a class="text-btn" href="calvin-cheung-resume.pdf" id="work-link" target="_blank" rel="noopener">Work</a>
       <span class="role">Software Engineer</span>
       <div class="contact">
-        <button class="contact-toggle" id="contact-toggle" type="button" aria-expanded="false" aria-controls="contact-ladder">Contact</button>
+        <button class="text-btn" id="contact-toggle" type="button" aria-expanded="false" aria-controls="contact-ladder">Contact</button>
         <div class="ladder" id="contact-ladder">
           <span class="rope left" aria-hidden="true"></span>
           <span class="rope right" aria-hidden="true"></span>
@@ -39,10 +39,10 @@
     </header>
 
     <footer class="overlay bottom">
-      <button class="about-toggle" id="about-toggle" type="button" aria-haspopup="dialog" aria-controls="about">About</button>
+      <button class="text-btn" id="about-toggle" type="button" aria-haspopup="dialog" aria-controls="about">About</button>
       <div class="settings">
-        <button class="settings-toggle" id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings-panel">Settings</button>
-        <div class="settings-panel" id="settings-panel" role="group" aria-label="Settings">
+        <button class="text-btn" id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings-panel">Settings</button>
+        <div class="settings-panel card" id="settings-panel" role="group" aria-label="Settings">
           <fieldset class="setting">
             <legend>Theme</legend>
             <div class="segmented">
@@ -66,10 +66,10 @@
     </footer>
   </main>
 
-  <div class="toy-menu" id="toy-menu" role="menu" aria-label="Toys"></div>
+  <div class="toy-menu card" id="toy-menu" role="menu" aria-label="Toys"></div>
 
   <!-- Now playing: keeps music going across toys. Spotify's player goes in the slot. -->
-  <aside class="now-playing" id="now-playing" aria-label="Now playing">
+  <aside class="now-playing card" id="now-playing" aria-label="Now playing">
     <div class="np-head">
       <span class="np-disc" aria-hidden="true"></span>
       <span class="np-text">
@@ -107,7 +107,7 @@
   </aside>
 
   <!-- Song list for the current playlist; opened from the widget or the CD player. -->
-  <section class="track-list" id="track-list" aria-labelledby="track-list-title">
+  <section class="track-list card" id="track-list" aria-labelledby="track-list-title">
     <header class="tl-head">
       <div class="tl-heading">
         <p class="tl-label" id="track-list-count">Songs</p>
@@ -120,9 +120,9 @@
     <ol class="tl-items" id="track-list-items"></ol>
   </section>
 
-  <dialog class="about" id="about" aria-labelledby="about-title">
-    <div class="about-card">
-      <button class="about-close" id="about-close" type="button" aria-label="Close">Close</button>
+  <dialog class="modal about" id="about" aria-labelledby="about-title">
+    <div class="about-card card">
+      <button class="about-close text-btn small" id="about-close" type="button">Close</button>
       <h2 id="about-title">About</h2>
       <p>
         Calvin is a full-stack software engineer with experience in leading and developing
@@ -132,13 +132,13 @@
     </div>
   </dialog>
 
-  <dialog class="resume" id="resume" aria-labelledby="resume-title">
-    <div class="resume-sheet">
+  <dialog class="modal resume" id="resume" aria-labelledby="resume-title">
+    <div class="resume-sheet card">
       <div class="resume-bar">
         <h2 id="resume-title">Resume</h2>
         <div class="resume-actions">
-          <a href="calvin-cheung-resume.pdf" download>Download</a>
-          <button class="resume-close" id="resume-close" type="button">Close</button>
+          <a class="text-btn small" href="calvin-cheung-resume.pdf" download>Download</a>
+          <button class="text-btn small" id="resume-close" type="button">Close</button>
         </div>
       </div>
       <div class="resume-pages" id="resume-pages">
@@ -147,11 +147,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="main.js"></script>
-  <script type="module" src="contact.js"></script>
-  <script type="module" src="about.js"></script>
-  <script type="module" src="resume.js"></script>
-  <script type="module" src="settings-panel.js"></script>
-  <script type="module" src="tracklist.js"></script>
+  <script type="module" src="/src/main.js"></script>
 </body>
 </html>

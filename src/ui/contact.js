@@ -1,8 +1,10 @@
 import { gsap } from "gsap";
-import { reduceMotion } from "./settings.js";
+import { reduceMotion } from "../settings.js";
+import { createPopover } from "./popover.js";
+
+// Contact links unroll from the Contact button like a rope ladder.
 
 const wrap = document.querySelector(".contact");
-const toggle = document.getElementById("contact-toggle");
 const ladder = document.getElementById("contact-ladder");
 const ropes = ladder.querySelectorAll(".rope");
 const rungs = ladder.querySelectorAll(".rung");
@@ -28,31 +30,10 @@ const unroll = gsap
     0
   );
 
-let open = false;
-
-function setOpen(next) {
-  if (next === open) return;
-  open = next;
-  toggle.setAttribute("aria-expanded", String(open));
-
-  if (reduceMotion()) {
-    unroll.progress(open ? 1 : 0).pause();
-  } else if (open) {
-    unroll.timeScale(1).play();
-  } else {
-    unroll.timeScale(2.2).reverse();
-  }
-}
-
-toggle.addEventListener("click", () => setOpen(!open));
-
-// Close on Escape or a click anywhere else (including the blocks canvas).
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && open) {
-    setOpen(false);
-    toggle.focus();
-  }
-});
-document.addEventListener("pointerdown", (e) => {
-  if (open && !wrap.contains(e.target)) setOpen(false);
+createPopover({
+  panel: ladder,
+  trigger: document.getElementById("contact-toggle"),
+  isInside: (target) => wrap.contains(target),
+  show: () => (reduceMotion() ? unroll.progress(1).pause() : unroll.timeScale(1).play()),
+  hide: () => (reduceMotion() ? unroll.progress(0).pause() : unroll.timeScale(2.2).reverse()),
 });

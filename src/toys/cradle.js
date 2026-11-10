@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
-import { NAME, LETTER_FONT } from "./shared.js";
+import { NAME } from "./shared.js";
+import { canvasTexture } from "./textures.js";
+import { fonts } from "../lib/fonts.js";
 import { getSetting, onSettingChange, theme } from "../settings.js";
 
 // Newton's cradle with the name etched into the balls.
@@ -47,6 +49,8 @@ const SUBSTEP = 1 / 600;
 
 // Live reflections per graphics setting: resolution of each ball's reflection,
 // and how many balls refresh theirs each frame (they take turns).
+const STILL = 1e-3; // below this angle (rad) and speed (rad/s) a ball is at rest
+
 const PROBE_QUALITY = {
   high: { size: 128, perFrame: 2 },
   low: { size: 64, perFrame: 1 },
@@ -60,32 +64,30 @@ const restX = Array.from({ length: COUNT }, (_, i) => (i - (COUNT - 1) / 2) * 2 
 
 // Equirectangular maps; the letter sits at u = 0.25, which three.js's sphere
 // maps to the side facing +z (the camera).
-function etchCanvas(letter, background, ink, blur = 0) {
-  const w = 1024;
-  const h = 512;
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const c = canvas.getContext("2d");
-  c.fillStyle = background;
-  c.fillRect(0, 0, w, h);
-  c.filter = blur ? `blur(${blur}px)` : "none";
-  c.font = `${Math.round(h * 0.36)}px ${LETTER_FONT}`;
-  c.textAlign = "center";
-  c.textBaseline = "middle";
-  c.fillStyle = ink;
-  c.fillText(letter, w * 0.25, h * 0.5 + h * 0.02);
-  return canvas;
+function etchTexture(letter, background, ink, { blur = 0, color = false } = {}) {
+  return canvasTexture(
+    1024,
+    (c, w, h) => {
+      c.fillStyle = background;
+      c.fillRect(0, 0, w, h);
+      c.filter = blur ? `blur(${blur}px)` : "none";
+      c.font = `${Math.round(h * 0.36)}px ${fonts.letter}`;
+      c.textAlign = "center";
+      c.textBaseline = "middle";
+      c.fillStyle = ink;
+      c.fillText(letter, w * 0.25, h * 0.5 + h * 0.02);
+    },
+    { height: 512, color }
+  );
 }
 
 function makeBallMaterial(letter, envMap) {
   // Colour: etched letter is duller than the polished steel around it.
-  const map = new THREE.CanvasTexture(etchCanvas(letter, "#ffffff", "#80858b"));
-  map.colorSpace = THREE.SRGBColorSpace;
+  const map = etchTexture(letter, "#ffffff", "#80858b", { color: true });
   // Roughness: polished surface, frosted etching.
-  const roughnessMap = new THREE.CanvasTexture(etchCanvas(letter, "rgb(28,28,28)", "rgb(150,150,150)"));
+  const roughnessMap = etchTexture(letter, "rgb(28,28,28)", "rgb(150,150,150)");
   // Bump: the letter is cut slightly into the surface.
-  const bumpMap = new THREE.CanvasTexture(etchCanvas(letter, "#ffffff", "#000000", 3));
+  const bumpMap = etchTexture(letter, "#ffffff", "#000000", { blur: 3 });
 
   return new THREE.MeshStandardMaterial({
     color: 0xe9ecef,
@@ -229,7 +231,8 @@ export function createCradle({ scene, renderer }) {
   // ----- Simulation state -----
   const theta = new Array(COUNT).fill(0); // swing angle, + is to the right
   const omega = new Array(COUNT).fill(0); // angular velocity
-  let held = null; // { index, target } — target is the angle the pointer wants
+  let held = null;
+  let settleCaptures = 0; // reflection refreshes still owed after the balls stop // { index, target } — target is the angle the pointer wants
 
   // Start with the first ball pulled back so it's already clicking.
   theta[0] = -0.75;
@@ -385,15 +388,26 @@ export function createCradle({ scene, renderer }) {
       };
     },
 
+    // Skips everything (and returns false) once the balls are at rest and their
+    // reflections have caught up.
     update(dt) {
-      const steps = Math.min(Math.ceil(dt / SUBSTEP), 100);
-      const h = dt / steps;
-      for (let s = 0; s < steps; s++) {
-        integrate(h);
-        resolveCollisions();
+      const moving = !!held || theta.some((t, i) => Math.abs(t) > STILL || Math.abs(omega[i]) > STILL);
+      if (moving) settleCaptures = COUNT * 2; // refresh every reflection twice once it stops
+      else if (settleCaptures <= 0) return false;
+
+      if (moving) {
+        const steps = Math.min(Math.ceil(dt / SUBSTEP), 100);
+        const h = dt / steps;
+        for (let s = 0; s < steps; s++) {
+          integrate(h);
+          resolveCollisions();
+        }
+        syncVisuals();
       }
-      syncVisuals();
-      captureReflections(probeQuality().perFrame);
+      const n = probeQuality().perFrame;
+      captureReflections(n);
+      if (!moving) settleCaptures -= n;
+      return true;
     },
 
     dispose() {

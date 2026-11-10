@@ -1,6 +1,7 @@
 import { gsap } from "gsap";
 import { music } from "./music.js";
-import { reduceMotion } from "./settings.js";
+import { formatTime } from "../lib/format.js";
+import { createPopover, popIn, popOut } from "../ui/popover.js";
 
 // Song list for a playlist: opened from the now-playing widget or the CD
 // player's list button. Clicking a song jumps straight to it.
@@ -13,13 +14,7 @@ const closeBtn = document.getElementById("track-list-close");
 const widget = document.getElementById("now-playing");
 const widgetBtn = document.getElementById("now-playing-list");
 
-const formatTime = (ms) => {
-  const s = Math.max(0, Math.floor(ms / 1000));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-};
-
 let shownPlaylist = null; // whose songs are listed
-let isOpen = false;
 
 function render(playlist) {
   shownPlaylist = playlist;
@@ -74,36 +69,34 @@ function place() {
 
 gsap.set(panel, { autoAlpha: 0, xPercent: -50 }); // centred via left: 50%
 
+// Clicks on the widget or the 3D scene don't close it (the CD player's own list
+// button lives in the scene).
+const popover = createPopover({
+  panel,
+  trigger: widgetBtn,
+  isInside: (target) => panel.contains(target) || widget.contains(target) || target.id === "stage",
+  show: () => popIn(panel, { y: 16 }, { ease: "back.out(1.6)" }),
+  hide: () => popOut(panel, { y: 10 }, { duration: 0.18 }),
+});
+closeBtn.addEventListener("click", popover.close);
+
 /** Show the songs of `playlist` (defaults to what's playing). */
 export function openTrackList(playlist = music.state.playlist) {
   if (!playlist) return;
   if (playlist !== shownPlaylist || !itemsEl.children.length) render(playlist);
   else markCurrent();
   place();
-  widgetBtn.setAttribute("aria-expanded", "true");
+  popover.open();
   itemsEl.querySelector(".is-current")?.scrollIntoView({ block: "center" });
-  if (isOpen) return;
-  isOpen = true;
-  gsap.killTweensOf(panel);
-  if (reduceMotion()) gsap.set(panel, { autoAlpha: 1, y: 0 });
-  else gsap.fromTo(panel, { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.4, ease: "back.out(1.6)" });
 }
 
-export function closeTrackList() {
-  if (!isOpen) return;
-  isOpen = false;
-  widgetBtn.setAttribute("aria-expanded", "false");
-  gsap.killTweensOf(panel);
-  if (reduceMotion()) gsap.set(panel, { autoAlpha: 0 });
-  else gsap.to(panel, { autoAlpha: 0, y: 10, duration: 0.18, ease: "power1.in" });
-}
-
-widgetBtn.addEventListener("click", () => (isOpen ? closeTrackList() : openTrackList()));
-closeBtn.addEventListener("click", closeTrackList);
+// The widget's list button opens what's playing (the popover's own toggle
+// handles closing).
+widgetBtn.addEventListener("click", () => popover.isOpen && openTrackList());
 
 music.subscribe((state) => {
   widgetBtn.disabled = !state.playlist || !music.tracksFor(state.playlist).length;
-  if (!isOpen) return;
+  if (!popover.isOpen) return;
   // Follow a different playlist being loaded (e.g. a new CD) while open.
   if (state.playlist && state.playlist !== shownPlaylist) render(state.playlist);
   else markCurrent();
@@ -111,15 +104,4 @@ music.subscribe((state) => {
 });
 
 // Keep it above the widget as that changes size (minimize, etc.).
-new ResizeObserver(() => isOpen && place()).observe(widget);
-
-// Close on Escape or a click elsewhere. Clicks on the 3D scene don't close it,
-// since the CD player's own list button lives there.
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") closeTrackList();
-});
-document.addEventListener("pointerdown", (e) => {
-  if (!isOpen || panel.contains(e.target) || widget.contains(e.target)) return;
-  if (e.target.id === "stage") return;
-  closeTrackList();
-});
+new ResizeObserver(() => popover.isOpen && place()).observe(widget);

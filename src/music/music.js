@@ -1,6 +1,7 @@
 import { gsap } from "gsap";
 import TRACKS from "virtual:playlist-tracks";
-import { reduceMotion } from "./settings.js";
+import { reduceMotion } from "../settings.js";
+import { formatTime } from "../lib/format.js";
 
 // Music playback through Spotify's embedded player, plus the "now playing"
 // widget that keeps it going while visitors switch toys.
@@ -172,11 +173,6 @@ ejectBtn.addEventListener("click", () => music.stop());
 
 // ---------- Scrubber ----------
 
-const formatTime = (ms) => {
-  const s = Math.max(0, Math.floor(ms / 1000));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-};
-
 let scrubbing = false; // the visitor is dragging it
 
 function currentPosition() {
@@ -194,12 +190,20 @@ function drawScrubber(position = currentPosition()) {
   totalEl.textContent = formatTime(duration);
 }
 
-// Spotify only reports the position every so often; animate in between.
+// Spotify only reports the position every so often, so animate in between,
+// but only while something is playing (the loop stops itself otherwise).
+let ticking = false;
+
 function tickScrubber() {
-  if (widgetShown && !scrubbing) drawScrubber();
-  requestAnimationFrame(tickScrubber);
+  const active = widgetShown && !state.isPaused;
+  if (!scrubbing) drawScrubber();
+  ticking = active;
+  if (active) requestAnimationFrame(tickScrubber);
 }
-requestAnimationFrame(tickScrubber);
+
+listeners.add(() => {
+  if (!ticking) tickScrubber(); // redraw now, and keep going if playing
+});
 
 seekInput.addEventListener("input", () => {
   scrubbing = true;

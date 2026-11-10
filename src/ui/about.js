@@ -1,46 +1,37 @@
 import { gsap } from "gsap";
-import { reduceMotion } from "./settings.js";
+import { createDialog } from "./dialog.js";
+
+// About popup: drops in like a block landing; on close it hangs from a corner,
+// falls to the bottom of the screen, topples flat and fades.
 
 const dialog = document.getElementById("about");
 const card = dialog.querySelector(".about-card");
-const toggle = document.getElementById("about-toggle");
-const closeBtn = document.getElementById("about-close");
 
-let closing = false;
+const about = createDialog(dialog, {
+  show() {
+    gsap.killTweensOf([dialog, card]);
+    gsap.fromTo(dialog, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power1.out" });
+    // Falls, tilts, then bounces level.
+    gsap.fromTo(
+      card,
+      { x: 0, y: -140, rotation: -5, scale: 0.94, autoAlpha: 0, transformOrigin: "50% 50%" },
+      { y: 0, rotation: 0, scale: 1, autoAlpha: 1, duration: 1, ease: "elastic.out(1, 0.55)" }
+    );
+  },
+  hide(done) {
+    gsap.killTweensOf([dialog, card]);
+    dropToFloor().to([card, dialog], {
+      opacity: 0,
+      duration: 0.35,
+      ease: "power1.out",
+      delay: 0.3, // let it rest a beat once flat
+      onComplete: done,
+    });
+  },
+});
 
-function open() {
-  if (dialog.open) return;
-  closing = false;
-  dialog.showModal();
-  if (reduceMotion()) return;
-
-  gsap.killTweensOf([dialog, card]);
-  gsap.fromTo(dialog, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power1.out" });
-  // Card drops in like a block landing: falls, tilts, then bounces level.
-  gsap.fromTo(
-    card,
-    { x: 0, y: -140, rotation: -5, scale: 0.94, autoAlpha: 0, transformOrigin: "50% 50%" },
-    { y: 0, rotation: 0, scale: 1, autoAlpha: 1, duration: 1, ease: "elastic.out(1, 0.55)" }
-  );
-}
-
-function close() {
-  if (!dialog.open || closing) return;
-  closing = true;
-  if (reduceMotion()) {
-    dialog.close();
-    return;
-  }
-
-  gsap.killTweensOf([dialog, card]);
-  dropToFloor().to([card, dialog], {
-    opacity: 0,
-    duration: 0.35,
-    ease: "power1.out",
-    delay: 0.3, // let it rest a beat once flat
-    onComplete: () => dialog.close(),
-  });
-}
+document.getElementById("about-toggle").addEventListener("click", about.open);
+document.getElementById("about-close").addEventListener("click", about.close);
 
 // The card hangs from one top corner (like a sign losing a nail), swings, then
 // drops to the bottom of the screen and bounces. Fall times come from
@@ -120,17 +111,3 @@ function dropToFloor() {
   tl.to(tilt, { angle: 0, duration: 0.07, ease: "power2.in", onUpdate: applyTilt });
   return tl;
 }
-
-toggle.addEventListener("click", open);
-closeBtn.addEventListener("click", close);
-
-// Escape: animate out instead of the dialog's instant close.
-dialog.addEventListener("cancel", (e) => {
-  e.preventDefault();
-  close();
-});
-
-// Clicking the backdrop (the dialog itself, outside the card) closes it.
-dialog.addEventListener("click", (e) => {
-  if (e.target === dialog) close();
-});
