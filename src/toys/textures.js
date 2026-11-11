@@ -1,6 +1,33 @@
 import * as THREE from "three";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
-// Helpers for the toys' painted textures (block faces, CD labels, etched balls).
+// Helpers for the toys' painted textures (block faces, CD labels, etched balls)
+// and reflections.
+
+/** A small seeded random-number generator (0–1), so the same seed draws the same wear every visit. */
+export function seeded(seed) {
+  let n = seed;
+  return () => {
+    n = (n * 16807) % 2147483647;
+    return (n - 1) / 2147483646;
+  };
+}
+
+/** A soft studio room for metal and shiny plastic to reflect (dispose it with the toy). */
+export function studioEnvMap(renderer) {
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  pmrem.dispose();
+  return envMap;
+}
+
+/** A blank canvas, `w` × `h` px. */
+export function makeCanvas(w, h) {
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  return canvas;
+}
 
 /**
  * Draw on a fresh canvas and wrap it as a texture: `draw(ctx, width, height)`.
@@ -8,9 +35,7 @@ import * as THREE from "three";
  * which must stay linear.
  */
 export function canvasTexture(width, draw, { height = width, color = true, anisotropy = 8 } = {}) {
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
+  const canvas = makeCanvas(width, height);
   draw(canvas.getContext("2d"), width, height);
   const texture = new THREE.CanvasTexture(canvas);
   if (color) texture.colorSpace = THREE.SRGBColorSpace;

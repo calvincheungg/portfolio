@@ -106,6 +106,14 @@
   gap: 0;
 }
 
+/* [|<] [||] [>|] [shuf]                [list] */
+.np-transport {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 6px;
+}
+
 .np-toggle .i-play,
 .now-playing.is-paused .np-toggle .i-pause,
 .np-minimize[aria-expanded="false"] .i-collapse,
@@ -344,4 +352,52 @@
   /* Phones: full width, lifted above About / Settings. */
   .now-playing { width: calc(100% - 32px); bottom: 60px; }
   .track-list { width: calc(100% - 32px); }
+}
+
+/* ---------- CD player: playlists for keyboards and screen readers ---------- */
+/* Out of sight until something in it has focus (tabbing in), then a small
+   card on the left, over the scene. */
+.cd-shelf {
+  position: fixed;
+  top: 50%;
+  left: 16px;
+  z-index: 6;
+  width: 30ch;
+  padding: 20px 2.5ch 16px;
+  transform: translateY(-50%);
+  font-size: 13px;
+  line-height: 22px;
+}
+
+.cd-shelf:not(:focus-within) {
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.cd-shelf ul {
+  margin: 4px 0 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.cd-shelf-title {
+  margin: 0;
+  color: var(--muted);
+}
+
+/* The disc that's in the player. */
+.cd-shelf .ascii-btn[aria-current="true"]::after {
+  content: "] <";
+}
+
+.cd-shelf-keys {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: normal;
 }

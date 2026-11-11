@@ -2,8 +2,9 @@ import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import * as CANNON from "cannon-es";
 import { NAME, BACK_Z, FRONT_Z } from "./shared.js";
-import { canvasTexture, roundRect } from "./textures.js";
+import { canvasTexture, roundRect, seeded } from "./textures.js";
 import { fonts } from "../lib/fonts.js";
+import { onToyKeys } from "../scene/keys.js";
 
 // The set's paints: red, blue, green, orange, purple. Every block shows all five.
 const LETTER_COLORS = ["#c0392b", "#2c6e9b", "#3f7d4e", "#d08a1e", "#7a4b8c"];
@@ -42,7 +43,7 @@ const boxShape = new CANNON.Box(new CANNON.Vec3(SIZE / 2, SIZE / 2, SIZE / 2));
  */
 function wornBlockGeometry(seed) {
   const geo = new RoundedBoxGeometry(SIZE, SIZE, SIZE, 6, SIZE * 0.08);
-  const rnd = rand(seed * 7919 + 3);
+  const rnd = seeded(seed * 7919 + 3);
   const half = SIZE / 2;
 
   // Chips: a few per edge at most, each a dent of some length and depth.
@@ -106,15 +107,6 @@ function wornBlockGeometry(seed) {
 }
 
 // ---------- Wood texture ----------
-
-function rand(seed) {
-  // Small deterministic PRNG so each face keeps its own grain.
-  let s = seed;
-  return () => {
-    s = (s * 16807) % 2147483647;
-    return (s - 1) / 2147483646;
-  };
-}
 
 /**
  * The wear on one face, as a list of marks, so the colour and bump maps can
@@ -204,10 +196,10 @@ function grime(c, size, strength) {
 
 function makeFaceTexture(renderer, letter, color, seed) {
   const anisotropy = renderer.capabilities.getMaxAnisotropy();
-  const marks = wearMarks(rand(seed * 4241 + 7), 512);
+  const marks = wearMarks(seeded(seed * 4241 + 7), 512);
 
   const map = canvasTexture(512, (c, size) => {
-    const rnd = rand(seed * 9973 + 1);
+    const rnd = seeded(seed * 9973 + 1);
 
     // Base wood tone: the same on every face of every block, since they're
     // one set from the same wood and finish. Only the grain and wear differ.
@@ -365,14 +357,39 @@ export function createBlocks({ scene, world, camera, renderer, bounds }) {
   }
 
   const blocks = [...NAME].map(makeBlock);
-  const startX = -NAME_WIDTH / 2 + SIZE / 2;
-  blocks.forEach(({ body }, i) => {
-    body.position.set(startX + i * (SIZE + GAP), 5 + i * 0.9, 0); // staggered drop
-    body.quaternion.setFromEuler(
-      (Math.random() - 0.5) * 0.15,
-      (Math.random() - 0.5) * 0.15,
-      (Math.random() - 0.5) * 0.15
-    );
+
+  /** Drop the blocks in from above, in a row spelling the name (one after another). */
+  function drop() {
+    const startX = -NAME_WIDTH / 2 + SIZE / 2;
+    blocks.forEach(({ body }, i) => {
+      body.position.set(startX + i * (SIZE + GAP), 5 + i * 0.9, 0);
+      body.quaternion.setFromEuler(
+        (Math.random() - 0.5) * 0.15,
+        (Math.random() - 0.5) * 0.15,
+        (Math.random() - 0.5) * 0.15
+      );
+      body.velocity.setZero();
+      body.angularVelocity.setZero();
+      body.wakeUp();
+    });
+  }
+  drop();
+
+  /** Toss every block up a little, tumbling. */
+  function toss() {
+    for (const { body } of blocks) {
+      body.wakeUp();
+      body.velocity.y += 5 + Math.random() * 3;
+      body.velocity.x += (Math.random() - 0.5) * 2;
+      body.angularVelocity.set((Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12);
+    }
+  }
+
+  // Keyboard: Space tosses the blocks, R drops them in again to spell the name.
+  const stopKeys = onToyKeys((key, e) => {
+    if (key !== " " && key !== "r") return false;
+    if (!e.repeat) (key === " " ? toss : drop)();
+    return true;
   });
 
   // Massless anchor that follows the pointer; the held block is pinned to it.
@@ -457,6 +474,7 @@ export function createBlocks({ scene, world, camera, renderer, bounds }) {
     },
 
     dispose() {
+      stopKeys();
       for (const { mesh, body } of blocks) {
         scene.remove(mesh);
         mesh.geometry.dispose();

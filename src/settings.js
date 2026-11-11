@@ -1,20 +1,14 @@
 // Visitor settings (theme, graphics quality, menu borders, reduce motion), remembered in
 // this browser. Anything not chosen yet follows the device.
 
+import { load, save } from "./lib/storage.js";
+
 const KEY = "portfolio-settings";
 const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
 const systemReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const isTouch = window.matchMedia("(pointer: coarse)").matches;
 
-function load() {
-  try {
-    return JSON.parse(localStorage.getItem(KEY)) || {};
-  } catch {
-    return {}; // private mode / blocked storage: just use defaults
-  }
-}
-
-const saved = load(); // only what the visitor has actually picked
+const saved = load(KEY, {}); // only what the visitor has actually picked
 const state = {
   // "light" | "dark" once picked; until then "system" (follows the device).
   theme: saved.theme ?? "system",
@@ -32,11 +26,7 @@ export function setSetting(key, value) {
   if (state[key] === value) return;
   state[key] = value;
   saved[key] = value;
-  try {
-    localStorage.setItem(KEY, JSON.stringify(saved));
-  } catch {
-    // not saved, but still applies for this visit
-  }
+  save(KEY, saved); // (if it can't be saved, it still applies for this visit)
   if (key === "theme") applyTheme();
   if (key === "reduceMotion") applyMotion();
   notify(key);

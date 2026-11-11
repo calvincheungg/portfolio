@@ -1,7 +1,9 @@
 import * as THREE from "three";
 import { gsap } from "gsap";
-import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { canvasTexture, noisyFill } from "./textures.js";
+import { canvasTexture, makeCanvas, noisyFill, studioEnvMap } from "./textures.js";
+import { LN, grey, hexToRGB, pigment, rgbCss, toned } from "./colour.js";
+import { NAME_FONT, paintedName } from "./drawing-name.js";
+import { createColourPicker } from "./colour-picker.js";
 import { createSilver } from "./silver.js";
 import { onResize } from "../scene/stage.js";
 import { reduceMotion } from "../settings.js";
@@ -9,6 +11,9 @@ import { popIn } from "../ui/popover.js";
 import { asciiFrame, asciiRange } from "../ui/ascii.js";
 import { shakeOnHover } from "../ui/shake.js";
 import { fonts } from "../lib/fonts.js";
+import * as storage from "../lib/storage.js";
+import { createTracker } from "./shared.js";
+import { onToyKeys } from "../scene/keys.js";
 
 // A worn silver swivel easel: a board on side pins with a chalkboard on one face and
 // a painting canvas on the other. Switching modes spins the board over. Draw by
@@ -73,28 +78,12 @@ const PAINT_SETTINGS = [
   ["mix", "Mixing", 0.2], // how much a stroke blends with the wet paint under it
 ];
 const SETTINGS_KEY = "portfolio-paint-settings";
-// Colours from the picker that have been drawn with, newest first, per side.
-const RECENT_KEY = "portfolio-recent-colours";
-const MAX_RECENT = 8;
-
-function loadRecent() {
-  const recent = { chalk: [], paint: [] };
-  try {
-    const saved = JSON.parse(localStorage.getItem(RECENT_KEY)) || {};
-    for (const mode in recent) {
-      if (Array.isArray(saved[mode])) recent[mode] = saved[mode].filter((c) => /^#[0-9a-f]{6}$/.test(c)).slice(0, MAX_RECENT);
-    }
-  } catch {}
-  return recent;
-}
-
 // Brush shapes. A flat brush is held at a fixed angle, so its stroke is broad
 // in one direction and thin moving along its edge.
 const BRUSHES = [
   ["round", "Round brush"],
   ["flat", "Flat brush"],
 ];
-const FLAT_ANGLE = (-40 * Math.PI) / 180; // the flat brush's edge, from horizontal (painted name)
 // The flat brush's own settings (sliders under "flat brush" in the paint
 // settings): key, label, default, min, max, unit. The angle is measured like a
 // protractor (counterclockwise from horizontal); length is % of the brush size.
@@ -111,84 +100,18 @@ function loadPaintSettings() {
   const settings = Object.fromEntries(PAINT_SETTINGS.map(([key, , value]) => [key, value]));
   for (const [key, , value] of FLAT_SETTINGS) settings[key] = value;
   settings.brush = "round";
-  try {
-    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {};
-    for (const key in settings) if (typeof saved[key] === typeof settings[key]) settings[key] = saved[key];
-    if (!BRUSHES.some(([id]) => id === settings.brush)) settings.brush = "round";
-    for (const [key, , value, min, max] of FLAT_SETTINGS) {
-      if (!(settings[key] >= min && settings[key] <= max)) settings[key] = value;
-    }
-  } catch {}
+  const saved = storage.load(SETTINGS_KEY, {});
+  for (const key in settings) if (typeof saved[key] === typeof settings[key]) settings[key] = saved[key];
+  if (!BRUSHES.some(([id]) => id === settings.brush)) settings.brush = "round";
+  for (const [key, , value, min, max] of FLAT_SETTINGS) {
+    if (!(settings[key] >= min && settings[key] <= max)) settings[key] = value;
+  }
   return settings;
 }
-
-const hexToRGB = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-const rgbCss = ([r, g, b]) => `rgb(${r | 0},${g | 0},${b | 0})`;
-
-/** "#rrggbb" → { h: 0–360, s: 0–100, l: 0–100 }, rounded to the picker's steps. */
-function hexToHsl(hex) {
-  const [r, g, b] = hexToRGB(hex).map((v) => v / 255);
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const l = (max + min) / 2;
-  const d = max - min;
-  let h = 0;
-  let s = 0;
-  if (d) {
-    s = d / (1 - Math.abs(2 * l - 1));
-    h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
-    h = (h * 60 + 360) % 360;
-  }
-  return { h: Math.round(h), s: Math.round(s * 100), l: Math.round(l * 100) };
-}
-
-function hslToHex({ h, s, l }) {
-  s /= 100;
-  l /= 100;
-  const a = s * Math.min(l, 1 - l);
-  const f = (n) => {
-    const k = (n + h / 30) % 12;
-    return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
-  };
-  return "#" + [f(0), f(8), f(4)].map((v) => Math.round(v * 255).toString(16).padStart(2, "0")).join("");
-}
-
-/** A typed hex colour ("f80", "#ff8800") as "#ff8800", or null. */
-function parseHex(text) {
-  const hex = text.trim().replace(/^#/, "").toLowerCase();
-  if (/^[0-9a-f]{6}$/.test(hex)) return `#${hex}`;
-  if (/^[0-9a-f]{3}$/.test(hex)) return `#${[...hex].map((c) => c + c).join("")}`;
-  return null;
-}
-
-/** Mix colour `a` toward `b` by `t` the way pigments mix (a weighted geometric mean), in place. */
-function pigment(a, b, t) {
-  if (t <= 0) return a;
-  for (let i = 0; i < 3; i++) a[i] = Math.exp((1 - t) * Math.log(Math.max(a[i], 3)) + t * Math.log(Math.max(b[i], 3)));
-  return a;
-}
-
-/** Colour lightened (tone > 0) or darkened (tone < 0) by up to 100%. */
-const toned = (rgb, tone) => rgbCss(rgb.map((v) => (tone > 0 ? v + (255 - v) * tone : v * (1 + tone))));
-
-const grey = (v) => {
-  const g = Math.round(THREE.MathUtils.clamp(v, 0, 255));
-  return `rgb(${g},${g},${g})`;
-};
-// Natural logs of 0–255, for mixing colours like pigment (a weighted geometric
-// mean): blue over yellow gives green, red over yellow orange, white over red pink.
-const LN = Float32Array.from({ length: 256 }, (_, v) => Math.log(Math.max(v, 3)));
 
 const rand = Math.random;
 
 // ---------- Textures ----------
-
-function makeCanvas(w, h) {
-  const c = document.createElement("canvas");
-  c.width = w;
-  c.height = h;
-  return c;
-}
 
 function woodTexture() {
   return canvasTexture(512, (c, s) => {
@@ -292,400 +215,34 @@ function grainImage(color) {
   return grainCache.get(color);
 }
 
-// ---------- The name, painted on the canvas to start ----------
-// "Calvin" in blackletter, painted in red with the thickest flat brush as if by
-// mouse: confident strokes along the letters, a little off, overshooting the ends.
-
-const NAME_TEXT = "Calvin";
-const NAME_FONT = '"UnifrakturMaguntia"'; // blackletter, loaded with the site's Google Fonts
-const NAME_INK = "#c0392b";
-const NAME_BRUSH = WIDTHS.paint.at(-1); // the thickest brush
-const NAME_PAINT = { thickness: 1, chunk: 0.35 }; // raised, a little streaky
-const SKELETON_SCALE = 3; // letters are thinned to centre lines at 1/3 ink resolution
-
-/** Path through `points`, shifted by (dx, dy). */
-function tracePath(c, points, dx = 0, dy = 0) {
-  c.beginPath();
-  points.forEach(([x, y], i) => (i ? c.lineTo(x + dx, y + dy) : c.moveTo(x + dx, y + dy)));
-}
-
-/** Font, position and size of the name on the ink canvas. */
-function nameLayout(c, fontFamily) {
-  let size = INK_H * 0.46;
-  c.font = `${size}px ${fontFamily}`;
-  size *= Math.min(1, (INK_W * 0.7) / c.measureText(NAME_TEXT).width);
-  const font = `${size}px ${fontFamily}`;
-  c.font = font;
-  const m = c.measureText(NAME_TEXT);
-  return {
-    font,
-    x: (INK_W - m.width) / 2,
-    baseline: INK_H / 2 + (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2,
-  };
-}
-
-/**
- * One flat-brush stroke along `points`: the ribbon the brush's edge sweeps out
- * plus bristle streaks, in colour (into `cc`) and relief (into `rc`). `lift`
- * raises it, for paint laid over other paint.
- */
-function flatStroke(cc, rc, points, width, color, { thickness, chunk, lift = 0 }) {
-  const ex = Math.cos(FLAT_ANGLE);
-  const ey = Math.sin(FLAT_ANGLE);
-  const hx = ex * width * 0.45;
-  const hy = ey * width * 0.45;
-  for (const [c, fill] of [[cc, color], [rc, grey(150 * thickness + lift)]]) {
-    c.beginPath();
-    points.forEach(([px, py]) => c.lineTo(px + hx, py + hy));
-    [...points].reverse().forEach(([px, py]) => c.lineTo(px - hx, py - hy));
-    c.closePath();
-    c.fillStyle = c.strokeStyle = fill;
-    c.fill();
-    c.lineWidth = width * 0.12; // so tight turns and dabs still leave paint
-    c.stroke();
-  }
-  const rgb = hexToRGB(color);
-  const count = Math.round(THREE.MathUtils.clamp(width / 1.8, 8, 26));
-  for (let b = 0; b < count; b++) {
-    const along = (rand() - 0.5) * width * (1 + 0.1 * chunk);
-    const across = (rand() - 0.5) * width * (0.06 + 0.1 * chunk);
-    const dx = ex * along - ey * across;
-    const dy = ey * along + ex * across;
-    const tone = (rand() - 0.5) * (0.03 + 0.22 * chunk);
-    const ridge = (150 + (rand() - 0.5) * 210 * chunk) * thickness + lift;
-    const bristle = width * (0.05 + rand() * 0.06);
-    for (const [c, stroke] of [[cc, toned(rgb, tone)], [rc, grey(ridge)]]) {
-      tracePath(c, points, dx, dy);
-      c.strokeStyle = stroke;
-      c.lineWidth = bristle;
-      c.stroke();
-    }
-  }
-}
-
-/**
- * A daub of paint for the dot on the i, as dabbed with a mouse: a lumpy,
- * slightly squashed blob at a tilt, a little flick where the brush dragged
- * off, and streaks across it in the brush's direction. Colour and relief as
- * flatStroke.
- */
-function daub(cc, rc, x, y, radius, color, paint) {
-  const { thickness, chunk } = paint;
-  const tilt = rand() * Math.PI;
-  const squash = [1.1 + rand() * 0.15, 0.82 + rand() * 0.1];
-  const lumps = [0, 1].map(() => ({ amp: 0.06 + rand() * 0.07, phase: rand() * 6.3 }));
-  const outline = Array.from({ length: 28 }, (_, k) => {
-    const a = (k / 28) * Math.PI * 2;
-    const r = radius * (1 + lumps[0].amp * Math.sin(2 * a + lumps[0].phase) + lumps[1].amp * Math.sin(3 * a + lumps[1].phase));
-    const px = Math.cos(a) * r * squash[0];
-    const py = Math.sin(a) * r * squash[1];
-    return [x + px * Math.cos(tilt) - py * Math.sin(tilt), y + px * Math.sin(tilt) + py * Math.cos(tilt)];
-  });
-  const rgb = hexToRGB(color);
-  for (const [c, fill] of [[cc, color], [rc, grey(150 * thickness)]]) {
-    tracePath(c, outline);
-    c.closePath();
-    c.fillStyle = fill;
-    c.fill();
-  }
-  // Streaks across it, as the brush moved through.
-  const ex = Math.cos(FLAT_ANGLE + Math.PI / 2);
-  const ey = Math.sin(FLAT_ANGLE + Math.PI / 2);
-  for (const c of [cc, rc]) {
-    c.save();
-    tracePath(c, outline);
-    c.closePath();
-    c.clip();
-  }
-  for (let b = 0; b < 9; b++) {
-    const off = (rand() - 0.5) * radius * 2;
-    const ox = x - ey * off;
-    const oy = y + ex * off;
-    const line = [[ox - ex * radius * 1.5, oy - ey * radius * 1.5], [ox + ex * radius * 1.5, oy + ey * radius * 1.5]];
-    const tone = (rand() - 0.5) * (0.03 + 0.18 * chunk);
-    const ridge = (150 + (rand() - 0.5) * 160 * chunk) * thickness;
-    const width = radius * (0.08 + rand() * 0.12);
-    for (const [c, stroke] of [[cc, toned(rgb, tone)], [rc, grey(ridge)]]) {
-      tracePath(c, line);
-      c.strokeStyle = stroke;
-      c.lineWidth = width;
-      c.stroke();
-    }
-  }
-  for (const c of [cc, rc]) c.restore();
-  // The flick where the brush left.
-  const away = rand() * Math.PI * 2;
-  const reach = radius * (0.9 + rand() * 0.5);
-  flatStroke(
-    cc,
-    rc,
-    [[x + Math.cos(away) * radius * 0.4, y + Math.sin(away) * radius * 0.4], [x + Math.cos(away) * reach, y + Math.sin(away) * reach]],
-    radius * 0.9,
-    color,
-    paint
-  );
-}
-
-/** Thin a 0/1 pixel mask (in place) to one-pixel-wide centre lines (Zhang–Suen). */
-function thin(on, w, h) {
-  const remove = [];
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const pass of [0, 1]) {
-      remove.length = 0;
-      for (let y = 1; y < h - 1; y++) {
-        for (let x = 1; x < w - 1; x++) {
-          const i = y * w + x;
-          if (!on[i]) continue;
-          // Neighbours clockwise from straight up.
-          const n = [on[i - w], on[i - w + 1], on[i + 1], on[i + w + 1], on[i + w], on[i + w - 1], on[i - 1], on[i - w - 1]];
-          const count = n.reduce((a, b) => a + b, 0);
-          if (count < 2 || count > 6) continue;
-          let rises = 0;
-          for (let k = 0; k < 8; k++) if (!n[k] && n[(k + 1) % 8]) rises++;
-          if (rises !== 1) continue;
-          const [up, , right, , down, , left] = n;
-          if (pass === 0 ? up * right * down || right * down * left : up * right * left || up * down * left) continue;
-          remove.push(i);
-        }
-      }
-      for (const i of remove) on[i] = 0;
-      if (remove.length) changed = true;
-    }
-  }
-}
-
-/**
- * Follow one-pixel-wide lines into paths of pixel indexes. A path that
- * touches no other is marked `alone` (dots, and some whole letters).
- */
-function traceLines(on, w) {
-  const offsets = [-w, 1, w, -1, -w - 1, -w + 1, w + 1, w - 1]; // straight neighbours first
-  const near = (i) => offsets.map((d) => i + d).filter((j) => on[j]);
-  const seen = new Uint8Array(on.length);
-  const paths = [];
-  function walk(start) {
-    const path = [];
-    // Start from a line already drawn, if this one branches off it.
-    const from = near(start).find((j) => seen[j]);
-    if (from !== undefined) path.push(from);
-    let joined = from !== undefined;
-    for (let i = start; i !== undefined; ) {
-      seen[i] = 1;
-      path.push(i);
-      const next = near(i).filter((j) => !seen[j]);
-      if (!next.length) {
-        // Run into a line already drawn? Meet it.
-        const meet = near(i).find((j) => seen[j] && !path.slice(-4).includes(j));
-        if (meet !== undefined) {
-          path.push(meet);
-          joined = true;
-        }
-        break;
-      }
-      i = next[0];
-    }
-    // Drop the little spurs thinning leaves on serifs; keep dots (like the i's).
-    path.alone = !joined;
-    if (path.length >= 6 || path.alone) paths.push(path);
-  }
-  for (let i = 0; i < on.length; i++) if (on[i] && !seen[i] && near(i).length === 1) walk(i); // ends
-  for (let i = 0; i < on.length; i++) if (on[i] && !seen[i]) walk(i); // loops
-  return paths;
-}
-
-/** The centre lines of the name's letters, as paths in ink pixels. */
-function letterLines(layout) {
-  const w = Math.ceil(INK_W / SKELETON_SCALE);
-  const h = Math.ceil(INK_H / SKELETON_SCALE);
-  const c = makeCanvas(w, h).getContext("2d", { willReadFrequently: true });
-  c.scale(1 / SKELETON_SCALE, 1 / SKELETON_SCALE);
-  c.font = layout.font;
-  c.fillText(NAME_TEXT, layout.x, layout.baseline);
-  const alpha = c.getImageData(0, 0, w, h).data;
-  const on = new Uint8Array(w * h);
-  for (let i = 0; i < on.length; i++) on[i] = alpha[i * 4 + 3] > 127 ? 1 : 0;
-  thin(on, w, h);
-  return traceLines(on, w).map((path) =>
-    Object.assign(
-      path.map((i) => [((i % w) + 0.5) * SKELETON_SCALE, (Math.floor(i / w) + 0.5) * SKELETON_SCALE]),
-      { alone: path.alone }
-    )
-  );
-}
-
-/** Average each point with its neighbours, `passes` times (irons out pixel steps). */
-function smoothPath(points, passes) {
-  let pts = points;
-  for (let p = 0; p < passes; p++) {
-    pts = pts.map((pt, i) => {
-      const a = pts[Math.max(0, i - 1)];
-      const b = pts[Math.min(pts.length - 1, i + 1)];
-      return [(a[0] + 2 * pt[0] + b[0]) / 4, (a[1] + 2 * pt[1] + b[1]) / 4];
-    });
-  }
-  return pts;
-}
-
-/** Points every `step` pixels along the path. */
-function resample(points, step) {
-  const out = [points[0]];
-  let carry = 0;
-  for (let i = 1; i < points.length; i++) {
-    const [ax, ay] = points[i - 1];
-    const [bx, by] = points[i];
-    const len = Math.hypot(bx - ax, by - ay);
-    let t = step - carry;
-    while (t <= len) {
-      out.push([ax + ((bx - ax) * t) / len, ay + ((by - ay) * t) / len]);
-      t += step;
-    }
-    carry = len - (t - step);
-  }
-  if (out.length === 1 || Math.hypot(...out.at(-1).map((v, k) => v - points.at(-1)[k])) > step / 2) out.push(points.at(-1));
-  return out;
-}
-
-/**
- * Make a clean line look drawn by mouse, but confidently: one continuous
- * stroke, a little off target, with a gentle drift and ends that overshoot.
- */
-function mouseStroke(line, shift) {
-  let pts = smoothPath(resample(line, 4), 3);
-  if (pts.length < 2) {
-    const [x, y] = pts[0];
-    return [[x - 3, y - 2], [x + 4, y + 3]]; // a dab
-  }
-  // Overshoot both ends along the line.
-  const extend = (a, b, by) => {
-    const len = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1;
-    return [a[0] + ((a[0] - b[0]) / len) * by, a[1] + ((a[1] - b[1]) / len) * by];
-  };
-  pts = [extend(pts[0], pts[1], 4 + rand() * 10), ...pts, extend(pts.at(-1), pts.at(-2), 8 + rand() * 16)];
-
-  const own = [shift[0] + (rand() - 0.5) * 10, shift[1] + (rand() - 0.5) * 8];
-  const drift = { amp: 0.6 + rand() * 1.4, freq: 0.01 + rand() * 0.02, phase: rand() * 6.3 };
-  let travelled = 0;
-  pts = pts.map((pt, i) => {
-    if (i) travelled += Math.hypot(pt[0] - pts[i - 1][0], pt[1] - pts[i - 1][1]);
-    const a = pts[Math.max(0, i - 1)];
-    const b = pts[Math.min(pts.length - 1, i + 1)];
-    const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-    const nx = -(b[1] - a[1]) / len;
-    const ny = (b[0] - a[0]) / len;
-    const wobble = drift.amp * Math.sin(travelled * drift.freq + drift.phase);
-    return [pt[0] + own[0] + nx * wobble, pt[1] + own[1] + ny * wobble];
-  });
-
-  return pts;
-}
-
-/**
- * Blackletter's "v" reads like a "b", so it's painted as a plain V instead:
- * centre lines for a left arm (thick, the way a flat brush meets it) and a
- * thinner right arm meeting at a point on the baseline, with a small entry
- * hook and a curl at the top right. Returns the lines and the x range the
- * font's own "v" covers.
- */
-function plainV(c, layout) {
-  c.font = layout.font;
-  const before = c.measureText(NAME_TEXT.slice(0, NAME_TEXT.indexOf("v"))).width;
-  const through = c.measureText(NAME_TEXT.slice(0, NAME_TEXT.indexOf("v") + 1)).width;
-  const x0 = layout.x + before;
-  const x1 = layout.x + through;
-  const w = x1 - x0;
-  const top = layout.baseline - c.measureText("x").actualBoundingBoxAscent;
-  const h = layout.baseline - top;
-  const point = [x0 + w * 0.5, layout.baseline - h * 0.04];
-  const lines = [
-    // Left arm, from a little hook at the top down to the point.
-    [[x0 + w * 0.08, top + h * 0.12], [x0 + w * 0.2, top], [x0 + w * 0.3, top + h * 0.3], point],
-    // Right arm, from a curl at the top right down to the point.
-    [[x1 - w * 0.22, top + h * 0.06], [x1 - w * 0.08, top - h * 0.02], [x1 - w * 0.06, top + h * 0.14], [x0 + w * 0.68, top + h * 0.55], point],
-  ];
-  return { lines, x0, x1 };
-}
-
-/** The name, as colour and relief images the size of the ink canvas. */
-function paintedName(fontFamily) {
-  const color = makeCanvas(INK_W, INK_H);
-  const relief = makeCanvas(INK_W, INK_H);
-  const cc = color.getContext("2d");
-  const rc = relief.getContext("2d");
-  for (const c of [cc, rc]) {
-    c.lineCap = "round";
-    c.lineJoin = "round";
-  }
-  // The letters' centre lines, gone over by mouse. A tiny one on its own is
-  // the i's dot, which gets a daub instead of a stroke.
-  const layout = nameLayout(cc, fontFamily);
-  const shift = [(rand() - 0.5) * 16, (rand() - 0.5) * 10];
-  const v = plainV(cc, layout);
-  const inV = (line) => line.filter(([px]) => px > v.x0 && px < v.x1).length > line.length * 0.6;
-  const lines = [...letterLines(layout).filter((line) => !inV(line)), ...v.lines];
-  for (const line of lines) {
-    const xs = line.map(([px]) => px);
-    const ys = line.map(([, py]) => py);
-    const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
-    if (line.alone && span < NAME_BRUSH * 0.5) {
-      const cx = xs.reduce((a, b) => a + b, 0) / xs.length + shift[0];
-      const cy = ys.reduce((a, b) => a + b, 0) / ys.length + shift[1];
-      daub(cc, rc, cx, cy, NAME_BRUSH * 0.4, NAME_INK, NAME_PAINT);
-    } else {
-      flatStroke(cc, rc, mouseStroke(line, shift), NAME_BRUSH, NAME_INK, NAME_PAINT);
-    }
-  }
-  return { color, relief };
-}
 
 // ---------- Toolbar ----------
-
-// The colour picker's sliders: key, label, max.
-const HSL_SLIDERS = [
-  ["h", "Hue", 360],
-  ["s", "Saturation", 100],
-  ["l", "Lightness", 100],
-];
 
 // Toolbar, drawn in text (styles in drawing.css and ascii.css):
 //   ( ) Chalkboard (*) Canvas   [#] # # # +   [Round] Flat   . [o] O
 //   [erase] [undo] [save] [clear all] [opts]
 function toolbarHTML() {
-  const pick = (name, value, label, text) =>
-    `<label class="draw-pick" title="${label}"><input type="radio" name="${name}" value="${value}" aria-label="${label}"><span>${text}</span></label>`;
+  // (`key`: its keyboard shortcut, shown in the tooltip.)
+  const pick = (name, value, label, text, key) =>
+    `<label class="draw-pick" title="${label} (${key})"><input type="radio" name="${name}" value="${value}" aria-label="${label}" aria-keyshortcuts="${key}"><span>${text}</span></label>`;
   return `
     <div class="segmented draw-mode">
-      <label><input type="radio" name="draw-mode" value="chalk"><span>Chalkboard</span></label>
-      <label><input type="radio" name="draw-mode" value="paint"><span>Canvas</span></label>
+      <label title="Chalkboard (C)"><input type="radio" name="draw-mode" value="chalk" aria-keyshortcuts="C"><span>Chalkboard</span></label>
+      <label title="Canvas (P)"><input type="radio" name="draw-mode" value="paint" aria-keyshortcuts="P"><span>Canvas</span></label>
     </div>
     <div class="draw-group draw-swatches" role="radiogroup" aria-label="Colour"></div>
     <div class="draw-group draw-brushes" role="radiogroup" aria-label="Brush">
-      ${BRUSHES.map(([id, label]) => pick("draw-brush", id, label, id[0].toUpperCase() + id.slice(1))).join("")}
+      ${BRUSHES.map(([id, label]) => pick("draw-brush", id, label, id[0].toUpperCase() + id.slice(1), id[0].toUpperCase())).join("")}
     </div>
     <div class="draw-group" role="radiogroup" aria-label="Size">
-      ${SIZE_NAMES.map((label, i) => pick("draw-size", i, label, ".oO"[i])).join("")}
+      ${SIZE_NAMES.map((label, i) => pick("draw-size", i, label, ".oO"[i], i + 1)).join("")}
     </div>
     <div class="draw-group draw-actions">
-      <button class="draw-btn ascii-btn" type="button" data-action="erase" aria-pressed="false" title="Eraser">Erase</button>
-      <button class="draw-btn ascii-btn" type="button" data-action="undo" title="Undo (Ctrl/⌘ Z)">Undo</button>
+      <button class="draw-btn ascii-btn" type="button" data-action="erase" aria-pressed="false" aria-keyshortcuts="E" title="Eraser (E)">Erase</button>
+      <button class="draw-btn ascii-btn" type="button" data-action="undo" aria-keyshortcuts="Control+Z Meta+Z" title="Undo (Ctrl/⌘ Z)">Undo</button>
       <button class="draw-btn ascii-btn" type="button" data-action="save" aria-label="Download as an image" title="Download">Save</button>
       <button class="draw-btn ascii-btn" type="button" data-action="clear" title="Wipe the chalkboard and the canvas">Clear</button>
       <button class="draw-btn ascii-btn" type="button" data-action="settings" aria-expanded="false" aria-controls="draw-settings" aria-label="Paint settings" title="Paint settings">Options</button>
-    </div>
-    <div class="draw-picker card" id="draw-picker" role="group" aria-label="Colour picker" data-ascii-title="colour" hidden>
-      <div class="draw-picker-head">
-        <i class="draw-preview"></i>
-        <label class="draw-hex">hex <span>[#<input type="text" maxlength="7" spellcheck="false" autocomplete="off" aria-label="Hex colour">]</span></label>
-      </div>
-      ${HSL_SLIDERS.map(
-        ([key, label, max]) => `<label class="draw-slider draw-${key}">
-          <span>${label}<output data-for="${key}"></output></span>
-          <input type="range" data-hsl="${key}" min="0" max="${max}" step="1">
-        </label>`
-      ).join("")}
-      <p class="ascii-rule">recent</p>
-      <div class="draw-recent" role="group" aria-label="Recent colours"></div>
     </div>
     <div class="draw-settings card" id="draw-settings" role="group" aria-label="Paint settings" data-ascii-title="paint" hidden>
       ${PAINT_SETTINGS.map(
@@ -709,8 +266,7 @@ function toolbarHTML() {
 // ---------- Toy ----------
 
 export function createDrawingBoard({ scene, camera, renderer, bounds }) {
-  const disposables = [];
-  const track = (thing) => (disposables.push(thing), thing);
+  const track = createTracker(); // GPU resources, freed in dispose()
 
   const state = {
     mode: "paint", // the canvas faces the viewer at the start
@@ -726,9 +282,7 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
   scene.add(root);
 
   // ----- Easel: old, worn silver -----
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const envMap = track(pmrem.fromScene(new RoomEnvironment(), 0.04).texture); // something to reflect
-  pmrem.dispose();
+  const envMap = track(studioEnvMap(renderer)); // something to reflect
   const silver = createSilver({ envMap, track, onRedraw: () => (dirty = true) });
   const { chromeMat, finial } = silver;
   const woodMat = track(new THREE.MeshStandardMaterial({ map: track(woodTexture()), roughness: 0.75 })); // the eraser's back
@@ -1011,7 +565,7 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     settingsPanel.hidden = !show;
     settingsBtn.setAttribute("aria-expanded", String(show));
     if (!show) return;
-    showPicker(false);
+    picker.show(false);
     popIn(settingsPanel, { y: -6, scale: 0.96, transformOrigin: "100% 0%" });
   }
 
@@ -1024,121 +578,20 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     drawPreview(); // the brush preview shows the new angle and length
   });
 
-  function savePaintSettings() {
-    try {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.paint));
-    } catch {}
-  }
+  const savePaintSettings = () => storage.save(SETTINGS_KEY, state.paint);
 
-  // ----- Colour picker: an ASCII box of hue / saturation / lightness bars -----
-  const picker = bar.querySelector(".draw-picker");
-  const hslInputs = picker.querySelectorAll("input[data-hsl]");
-  const hexInput = picker.querySelector(".draw-hex input");
-  const preview = picker.querySelector(".draw-preview");
-  const hsl = { h: 0, s: 60, l: 50 };
-  let pickedHex = hslToHex(hsl); // exactly as typed, when it was typed
-  const pick = (hex) => {
-    pickedHex = hex;
-    Object.assign(hsl, hexToHsl(hex));
-  };
-  const hslBars = [...hslInputs].map((input) => asciiRange(input, { marker: "|" }));
-  unframe.push(asciiFrame(picker));
+  // ----- Colour picker (colour-picker.js), under the + after the swatches -----
   const customBtn = () => swatchesEl.querySelector(".draw-custom");
-  const recentEl = picker.querySelector(".draw-recent");
-  const recentRule = picker.querySelector(".ascii-rule");
-  const recent = loadRecent();
-
-  // Recent colours along the bottom of the picker, bracketed when in use.
-  function renderRecent() {
-    const list = recent[state.mode];
-    recentEl.hidden = recentRule.hidden = !list.length; // nothing shown until there are some
-    recentEl.innerHTML = list
-      .map(
-        (c) => `<button class="draw-pick" type="button" data-color="${c}" aria-label="${c}" title="${c}"><span><i style="--c:${c}"></i></span></button>`
-      )
-      .join("");
-    syncRecent();
-  }
-
-  function syncRecent() {
-    for (const btn of recentEl.querySelectorAll("[data-color]")) {
-      btn.setAttribute("aria-pressed", String(!state.erasing && btn.dataset.color === state.color[state.mode]));
-    }
-  }
-
-  /** Keep a picker colour that's been drawn with at the front of the recent list. */
-  function remember(hex) {
-    const list = recent[state.mode];
-    if (list[0] === hex) return;
-    recent[state.mode] = [hex, ...list.filter((c) => c !== hex)].slice(0, MAX_RECENT);
-    try {
-      localStorage.setItem(RECENT_KEY, JSON.stringify(recent));
-    } catch {}
-    renderRecent();
-  }
   const isCustom = () => !PALETTES[state.mode].some(([, color]) => color === state.color[state.mode]);
-
-  // What the picker shows. Usually just `hsl`, but when a colour is chosen
-  // from elsewhere (a swatch, a recent colour, the tray) it glides there.
-  const shown = { ...hsl };
-
-  /** Show the picker at `shown`; `hex` is the exact colour once it's arrived. */
-  function paintPicker(hex) {
-    const view = { h: ((Math.round(shown.h) % 360) + 360) % 360, s: Math.round(shown.s), l: Math.round(shown.l) };
-    hex ??= hslToHex(view);
-    for (const input of hslInputs) {
-      const key = input.dataset.hsl;
-      input.value = view[key];
-      picker.querySelector(`output[data-for="${key}"]`).textContent = key === "h" ? `${view.h}°` : `${view[key]}%`;
-    }
-    picker.style.setProperty("--h", view.h);
-    picker.style.setProperty("--s", `${view.s}%`);
-    picker.style.setProperty("--l", `${view.l}%`);
-    preview.style.setProperty("--c", hex);
-    if (document.activeElement !== hexInput) hexInput.value = hex.slice(1);
-    for (const slider of hslBars) slider.update();
-  }
-
-  /** Show the current colour straight away (stopping any glide). */
-  function syncPicker() {
-    gsap.killTweensOf(shown);
-    Object.assign(shown, hsl);
-    paintPicker(pickedHex);
-  }
-
-  /** Pick `hex` and slide the picker's bars, numbers and swatch over to it. */
-  function glideTo(hex) {
-    pick(hex);
-    if (picker.hidden || reduceMotion()) return syncPicker();
-    gsap.killTweensOf(shown);
-    let h = hsl.h; // the short way round the hue circle
-    while (h - shown.h > 180) h -= 360;
-    while (shown.h - h > 180) h += 360;
-    gsap.to(shown, {
-      h,
-      s: hsl.s,
-      l: hsl.l,
-      duration: 0.5,
-      ease: "power3.out",
-      onUpdate: () => paintPicker(),
-      onComplete: syncPicker,
-    });
-  }
-
-  function showPicker(show) {
-    picker.hidden = !show;
-    customBtn()?.setAttribute("aria-expanded", String(show));
-    if (!show) return;
-    showSettings(false);
-    pick(state.color[state.mode]);
-    syncPicker();
-    renderRecent();
-    // Under the + button, kept within the toolbar.
-    const btn = customBtn();
-    const left = btn.offsetLeft + btn.offsetWidth / 2 - picker.offsetWidth / 2;
-    picker.style.left = `${Math.max(0, Math.min(left, bar.clientWidth - picker.offsetWidth))}px`;
-    popIn(picker, { y: -6, scale: 0.96, transformOrigin: "50% 0%" });
-  }
+  const picker = createColourPicker({
+    bar,
+    anchor: customBtn,
+    side: () => state.mode,
+    colour: () => state.color[state.mode],
+    erasing: () => state.erasing,
+    onPick: useCustom,
+    onOpen: () => showSettings(false),
+  });
 
   /** Paint with a colour made in the picker. */
   function useCustom(hex) {
@@ -1147,30 +600,6 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     renderCustom();
     syncUI();
   }
-
-  picker.addEventListener("input", (e) => {
-    const key = e.target.dataset.hsl;
-    if (key) {
-      hsl[key] = Number(e.target.value);
-      pickedHex = hslToHex(hsl);
-    } else if (e.target === hexInput) {
-      const hex = parseHex(hexInput.value);
-      if (!hex) return; // still typing
-      pick(hex);
-    }
-    syncPicker();
-    useCustom(pickedHex);
-  });
-  hexInput.addEventListener("blur", syncPicker); // tidy up whatever was typed
-  recentEl.addEventListener("click", (e) => {
-    const color = e.target.closest("[data-color]")?.dataset.color;
-    if (!color) return;
-    glideTo(color);
-    useCustom(color);
-  });
-  hexInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") hexInput.blur();
-  });
 
   // Each colour is a cell of that colour, bracketed when picked: [#]. Then a
   // + that opens the picker (showing the last colour made in it, if any).
@@ -1183,7 +612,7 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
         </label>`
         )
         .join("") +
-      `<button class="draw-pick draw-custom" type="button" data-action="picker" aria-controls="draw-picker" aria-expanded="${!picker.hidden}" aria-pressed="false" aria-label="Pick any colour" title="Pick any colour"><span></span></button>`;
+      `<button class="draw-pick draw-custom" type="button" data-action="picker" aria-controls="draw-picker" aria-expanded="${picker.open}" aria-pressed="false" aria-label="Pick any colour" title="Pick any colour"><span></span></button>`;
     renderCustom();
   }
 
@@ -1201,10 +630,7 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     }
     eraseBtn.setAttribute("aria-pressed", String(state.erasing));
     customBtn().setAttribute("aria-pressed", String(!state.erasing && isCustom()));
-    syncRecent();
-    if (!picker.hidden && pickedHex !== state.color[state.mode]) {
-      glideTo(state.color[state.mode]); // a colour picked elsewhere
-    }
+    picker.sync();
     // Brush shapes and paint settings only apply to the canvas.
     settingsBtn.hidden = state.mode !== "paint";
     brushesEl.hidden = state.mode !== "paint";
@@ -1253,8 +679,8 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     if (action === "settings") showSettings(settingsPanel.hidden);
     if (action === "picker") {
       const custom = state.custom[state.mode];
-      if (custom && picker.hidden) useCustom(custom);
-      showPicker(picker.hidden);
+      if (custom && !picker.open) useCustom(custom);
+      picker.show(!picker.open);
     }
     if (action === "undo") undo();
     if (action === "clear") clear();
@@ -1262,8 +688,8 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
   });
 
   function onKey(e) {
-    if (e.key === "Escape" && !picker.hidden) {
-      showPicker(false);
+    if (e.key === "Escape" && picker.open) {
+      picker.show(false);
       customBtn().focus();
       return;
     }
@@ -1272,13 +698,30 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
       settingsBtn.focus();
       return;
     }
-    if (e.target === hexInput) return; // typing a colour
+    if (e.target.closest?.(".draw-hex")) return; // typing a colour
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "z") {
       e.preventDefault();
       undo();
     }
   }
   document.addEventListener("keydown", onKey);
+
+  // Shortcuts for the toolbar: C / P chalkboard or canvas, E eraser, 1–3 size,
+  // R / F round or flat brush (on the canvas).
+  const stopKeys = onToyKeys((key, e) => {
+    const brush = { r: "round", f: "flat" }[key];
+    if (!("cpe123".includes(key) && key.length === 1) && !(brush && state.mode === "paint")) return false;
+    if (e.repeat) return true;
+    if (key === "c" || key === "p") setMode(key === "c" ? "chalk" : "paint");
+    else if (key === "e") state.erasing = !state.erasing;
+    else if (brush) {
+      state.paint.brush = brush;
+      state.erasing = false;
+      savePaintSettings();
+    } else state.size = Number(key) - 1;
+    syncUI();
+    return true;
+  });
 
   // ----- Flipping between chalkboard and canvas -----
   let flipping = false;
@@ -1289,7 +732,7 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     state.mode = mode;
     state.erasing = false;
     endStroke();
-    showPicker(false);
+    picker.show(false);
     renderSwatches();
     brushPreview.visible = false; // until the pointer moves over the new side
     spin += Math.PI; // always over the top in the same direction
@@ -1595,7 +1038,7 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
   }
 
   function startStroke(side, p) {
-    if (!state.erasing && isCustom()) remember(state.color[state.mode]);
+    if (!state.erasing && isCustom()) picker.remember(state.color[state.mode]);
     const saved = pushUndo(side);
     const painting = state.mode === "paint" && !state.erasing;
     if (painting) side.layerCtx.clearRect(0, 0, INK_W, INK_H);
@@ -1665,7 +1108,7 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     .then(() => {
       if (disposed || nameCleared) return;
       const family = document.fonts.check(`100px ${NAME_FONT}`) ? NAME_FONT : fonts.letter;
-      const { color, relief } = paintedName(family);
+      const { color, relief } = paintedName(family, { w: INK_W, h: INK_H }, WIDTHS.paint.at(-1));
       // Underneath anything painted while the font was loading.
       const side = sides.paint;
       for (const [c, image] of [[side.ctx, color], [side.heightCtx, relief]]) {
@@ -1858,15 +1301,17 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     dispose() {
       disposed = true;
       document.removeEventListener("keydown", onKey);
+      stopKeys();
       stopResize();
       barSize.disconnect();
       for (const remove of unframe) remove();
       for (const wobble of wobbles) wobble.dispose();
-      for (const slider of [...sliderBars, ...hslBars]) slider.dispose();
+      for (const slider of sliderBars) slider.dispose();
+      picker.dispose();
       gsap.killTweensOf([bar, board.rotation, ...items.map((item) => item.position)]);
       bar.remove();
       scene.remove(root);
-      for (const thing of disposables) thing.dispose();
+      track.disposeAll();
     },
   };
 }

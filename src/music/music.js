@@ -2,6 +2,7 @@ import { gsap } from "gsap";
 import TRACKS from "virtual:playlist-tracks";
 import { reduceMotion, onSettingChange } from "../settings.js";
 import { formatTime } from "../lib/format.js";
+import { load, save } from "../lib/storage.js";
 import { asciiRange } from "../ui/ascii.js";
 
 // Music playback through Spotify's embedded player, plus the "now playing"
@@ -35,6 +36,12 @@ const seekInput = document.getElementById("now-playing-seek");
 const elapsedEl = document.getElementById("now-playing-elapsed");
 const totalEl = document.getElementById("now-playing-total");
 
+// Remembered between visits: shuffle on or off, and the last playlist played
+// (its url), so the CD player can have its disc ready next time.
+const SHUFFLE_KEY = "portfolio-shuffle";
+const LAST_KEY = "portfolio-last-playlist";
+const rememberPlaylist = (playlist) => save(LAST_KEY, playlist.url);
+
 // position/duration are in ms, as Spotify reports them; positionAt is when
 // position was last reported, so the scrubber can move smoothly in between.
 const state = {
@@ -46,19 +53,11 @@ const state = {
   position: 0,
   duration: 0,
   positionAt: 0,
-  shuffle: loadShuffle(), // play the playlist's songs in a random order
+  shuffle: !!load(SHUFFLE_KEY, false), // play the playlist's songs in a random order
 };
-// Shuffle: remembered between visits. While it's on, songs come from a shuffled
-// running order (every song once before any repeats), and "back" retraces the
-// songs actually played.
-const SHUFFLE_KEY = "portfolio-shuffle";
-function loadShuffle() {
-  try {
-    return localStorage.getItem(SHUFFLE_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
+// While shuffle is on, songs come from a shuffled running order (every song
+// once before any repeats), and "back" retraces the songs actually played.
+
 let order = []; // shuffled song indexes still to come
 let history = []; // indexes played this time round, for "back"
 
@@ -295,6 +294,14 @@ export const music = {
     return state;
   },
 
+  /** How far into the song we are now, in ms (between Spotify's reports, worked out from the clock). */
+  position: currentPosition,
+
+  /** The url of the playlist played last (this visit or before), if any. */
+  lastPlayed() {
+    return load(LAST_KEY, null);
+  },
+
   /** The songs in a playlist (empty if its track list couldn't be fetched). */
   tracksFor(playlist) {
     return TRACKS[playlist.url] ?? [];
@@ -304,6 +311,7 @@ export const music = {
   playTrack(playlist, index) {
     showWidget(true);
     if (state.playlist !== playlist) {
+      rememberPlaylist(playlist);
       state.playlist = playlist;
       state.queue = this.tracksFor(playlist);
       order = [];
@@ -323,6 +331,7 @@ export const music = {
       if (state.isPaused) this.toggle();
       return;
     }
+    rememberPlaylist(playlist);
     state.playlist = playlist;
     state.queue = this.tracksFor(playlist);
     order = [];
@@ -364,9 +373,7 @@ export const music = {
     state.shuffle = !state.shuffle;
     order = [];
     history = [];
-    try {
-      localStorage.setItem(SHUFFLE_KEY, state.shuffle ? "1" : "0");
-    } catch {}
+    save(SHUFFLE_KEY, state.shuffle);
     notify();
   },
 
