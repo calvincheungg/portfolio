@@ -6,12 +6,10 @@
 
 .work-menu {
   position: absolute;
-  left: -10px;
-  top: calc(100% + 12px);
-  min-width: 200px;
-  padding: 8px;
-  border-radius: 12px;
-  font-family: var(--font-ui);
+  left: 0;
+  top: calc(100% + 10px);
+  min-width: 28ch;
+  padding: 22px 2ch 18px;
   font-size: 13px;
   pointer-events: auto;
   visibility: hidden; /* GSAP reveals it */
@@ -23,38 +21,18 @@
   padding: 0;
 }
 
-.overlay .work-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  color: var(--fg);
-  text-decoration: none;
-  transition: background 0.15s;
-}
-
-.overlay .work-item:hover,
-.overlay .work-item:focus-visible {
-  background: var(--hover);
-}
-
+/* Rows are .ascii-row; a "->" on the right marks links to other sites. */
 .work-item .arrow {
+  margin-left: auto;
+  padding-left: 3ch;
   color: var(--muted);
-  transition: transform 0.15s;
 }
 
-.work-item:hover .arrow {
-  transform: translate(2px, -2px);
+.work-item:hover .arrow,
+.work-item:focus-visible .arrow {
+  color: inherit;
 }
 
 .work-heading {
-  margin: 10px 10px 4px;
-  padding-top: 10px;
-  border-top: 1px solid var(--hover);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
+  margin-top: 6px;
 }

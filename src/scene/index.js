@@ -12,17 +12,21 @@ import { fonts } from "../lib/fonts.js";
 //   grab(hit)      → { move(ray), release() } while held
 //   update(dt)     → true if anything visible changed (so the frame is drawn)
 //   dispose()
-//   doubleClick(hit), cursor ("pointer" for clicked rather than dragged toys)
-//                  optional
+//   doubleClick(hit), cursor ("pointer" for clicked rather than dragged toys,
+//                  "crosshair" for drawing) optional
 // Toys are downloaded the first time they're picked.
+// The first is the one the page opens with.
 const TOYS = [
+  { id: "draw", label: "Drawing board", load: () => import("../toys/drawing.js").then((m) => m.createDrawingBoard) },
   { id: "blocks", label: "Blocks", load: () => import("../toys/blocks.js").then((m) => m.createBlocks) },
   { id: "cradle", label: "Newton's cradle", load: () => import("../toys/cradle.js").then((m) => m.createCradle) },
   { id: "cd", label: "CD player", load: () => import("../toys/cdplayer.js").then((m) => m.createCdPlayer) },
 ];
 
 const ctx = { scene, world, camera, renderer, bounds };
-let toyId = TOYS[0].id;
+// A toy can be linked to directly, e.g. /?toy=draw
+const linked = new URLSearchParams(location.search).get("toy");
+let toyId = TOYS.find((t) => t.id === linked)?.id ?? TOYS[0].id;
 let toy = null;
 let loading = 0; // so only the latest pick wins if several load at once
 
@@ -34,7 +38,7 @@ async function loadToy(id) {
   toy?.dispose();
   toyId = id;
   toy = create(ctx);
-  canvas.classList.remove("grab", "point");
+  canvas.classList.remove("grab", "point", "draw");
   requestRender();
 }
 

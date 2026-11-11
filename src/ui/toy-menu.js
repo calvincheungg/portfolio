@@ -5,12 +5,12 @@ import { createPopover, popIn, popOut } from "./popover.js";
 // press). `actions` are extra commands listed under the toys, e.g.
 // [{ label: "Reset", onClick }].
 export function createToyMenu(el, toys, onSelect, actions = []) {
-  el.innerHTML = `<p class="toy-menu-title">Toys</p>`;
+  // (The title, "toys", is drawn in its ASCII frame.)
 
   function addItem(label, role, onClick) {
     const item = document.createElement("button");
     item.type = "button";
-    item.className = "toy-menu-item";
+    item.className = "toy-menu-item ascii-row";
     item.setAttribute("role", role);
     item.textContent = label;
     item.addEventListener("click", () => {

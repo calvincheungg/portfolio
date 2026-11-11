@@ -28,7 +28,7 @@
   <meta name="theme-color" content="#1b1916" media="(prefers-color-scheme: dark)">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Space+Mono:wght@400;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Space+Mono:wght@400;700&family=Inter:wght@400;500&family=UnifrakturMaguntia&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/src/styles/index.css">
   <script>
     // Apply the saved theme before first paint so dark mode doesn't flash light.
@@ -41,41 +41,41 @@
 </head>
 <body>
   <main class="hero">
-    <canvas id="stage" aria-label="Interactive toys spelling Calvin. Right-click to choose a different toy."></canvas>
+    <canvas id="stage" aria-label="Interactive toys: a drawing board with Calvin painted on it to start. Right-click to choose a different toy."></canvas>
     <!-- Shown instead of the canvas if the 3D scene can't start (see src/main.js). -->
     <img id="stage-fallback" alt="Wooden toy blocks spelling CALVIN" width="2200" height="520" hidden>
 
     <header class="overlay top">
       <div class="work">
-        <button class="text-btn" id="work-toggle" type="button" aria-expanded="false" aria-controls="work-menu">Work</button>
-        <nav class="work-menu card" id="work-menu" aria-label="Work">
-          <a class="work-item" href="calvin-cheung-resume.pdf" id="resume-link" data-track="/resume" target="_blank" rel="noopener">Resume</a>
-          <p class="work-heading">Projects</p>
+        <button class="text-btn ascii-btn" id="work-toggle" type="button" aria-expanded="false" aria-controls="work-menu">Work</button>
+        <nav class="work-menu card" id="work-menu" aria-label="Work" data-ascii-title="work">
+          <a class="work-item ascii-row" href="calvin-cheung-resume.pdf" id="resume-link" data-track="/resume" target="_blank" rel="noopener">Resume</a>
+          <p class="work-heading ascii-rule">Projects</p>
           <ul>
-            <li><a class="work-item" href="https://beatmap-rho.vercel.app/" data-track="/projects/beatmap" target="_blank" rel="noopener">BeatMap <span class="arrow" aria-hidden="true">↗</span></a></li>
+            <li><a class="work-item ascii-row" href="https://beatmap-rho.vercel.app/" data-track="/projects/beatmap" target="_blank" rel="noopener">BeatMap<span class="arrow" aria-hidden="true">-&gt;</span></a></li>
           </ul>
         </nav>
       </div>
       <span class="role">Full-stack Software Engineer</span>
       <div class="contact">
-        <button class="text-btn" id="contact-toggle" type="button" aria-expanded="false" aria-controls="contact-ladder">Contact</button>
+        <button class="text-btn ascii-btn" id="contact-toggle" type="button" aria-expanded="false" aria-controls="contact-ladder">Contact</button>
         <div class="ladder" id="contact-ladder">
           <span class="rope left" aria-hidden="true"></span>
           <span class="rope right" aria-hidden="true"></span>
           <ul>
-            <li class="rung"><a href="https://www.linkedin.com/in/calvin007/" data-track="/contact/linkedin" target="_blank" rel="noopener">LinkedIn</a></li>
-            <li class="rung"><a href="https://github.com/calvincheungg" data-track="/contact/github" target="_blank" rel="noopener">GitHub</a></li>
-            <li class="rung"><a href="mailto:calvincheungx@gmail.com" id="email-copy" data-track="/contact/email" title="Click to copy">calvincheungx@gmail.com</a></li>
+            <li class="rung"><a href="https://www.linkedin.com/in/calvin007/" data-track="/contact/linkedin" target="_blank" rel="noopener"><span class="rung-label">LinkedIn</span></a></li>
+            <li class="rung"><a href="https://github.com/calvincheungg" data-track="/contact/github" target="_blank" rel="noopener"><span class="rung-label">GitHub</span></a></li>
+            <li class="rung"><a href="mailto:calvincheungx@gmail.com" id="email-copy" data-track="/contact/email" title="Click to copy"><span class="rung-label">calvincheungx@gmail.com</span></a></li>
           </ul>
         </div>
       </div>
     </header>
 
     <footer class="overlay bottom">
-      <button class="text-btn" id="about-toggle" type="button" aria-haspopup="dialog" aria-controls="about">About</button>
+      <button class="text-btn ascii-btn" id="about-toggle" type="button" aria-haspopup="dialog" aria-controls="about">About</button>
       <div class="settings">
-        <button class="text-btn" id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings-panel">Settings</button>
-        <div class="settings-panel card" id="settings-panel" role="group" aria-label="Settings">
+        <button class="text-btn ascii-btn" id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings-panel">Settings</button>
+        <div class="settings-panel card" id="settings-panel" role="group" aria-label="Settings" data-ascii-title="settings">
           <fieldset class="setting">
             <legend>Theme</legend>
             <div class="segmented">
@@ -90,16 +90,17 @@
               <label><input type="radio" name="quality" value="high"><span>High</span></label>
             </div>
           </fieldset>
-          <label class="setting switch-row">
+          <label class="setting ascii-check-row">
             <span>Reduce motion</span>
-            <input type="checkbox" name="reduceMotion" class="switch">
+            <input type="checkbox" name="reduceMotion">
+            <span class="ascii-check" aria-hidden="true"></span>
           </label>
         </div>
       </div>
     </footer>
   </main>
 
-  <div class="toy-menu card" id="toy-menu" role="menu" aria-label="Toys"></div>
+  <div class="toy-menu card" id="toy-menu" role="menu" aria-label="Toys" data-ascii-title="toys"></div>
 
   <!-- Now playing: keeps music going across toys. Spotify's player goes in the slot. -->
   <aside class="now-playing card" id="now-playing" aria-label="Now playing">
@@ -110,26 +111,13 @@
         <span class="np-title" id="now-playing-title"></span>
       </span>
       <div class="np-controls">
-        <button class="np-btn" id="now-playing-prev" type="button" aria-label="Previous track">
-          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 2.5v7" /><path d="M9.5 2.5 4.5 6l5 3.5z" /></svg>
-        </button>
-        <button class="np-btn np-toggle" id="now-playing-toggle" type="button" aria-label="Pause">
-          <svg class="i-pause" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2.5v7M8 2.5v7" /></svg>
-          <svg class="i-play" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 2.2 9.8 6l-6.3 3.8z" /></svg>
-        </button>
-        <button class="np-btn" id="now-playing-next" type="button" aria-label="Next track">
-          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M9 2.5v7" /><path d="M2.5 2.5 7.5 6l-5 3.5z" /></svg>
-        </button>
+        <button class="np-btn ascii-btn" id="now-playing-prev" type="button" aria-label="Previous track">|&lt;</button>
+        <button class="np-btn ascii-btn np-toggle" id="now-playing-toggle" type="button" aria-label="Pause"><span class="i-pause" aria-hidden="true">||</span><span class="i-play" aria-hidden="true">&gt;</span></button>
+        <button class="np-btn ascii-btn" id="now-playing-next" type="button" aria-label="Next track">&gt;|</button>
       </div>
-      <button class="np-btn" id="now-playing-list" type="button" aria-expanded="false" aria-controls="track-list" aria-label="Show songs">
-        <svg class="np-stroke" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3h5.5M4.5 6h5.5M4.5 9h5.5M2 3h.01M2 6h.01M2 9h.01" /></svg>
-      </button>
-      <button class="np-btn np-minimize" id="now-playing-minimize" type="button" aria-expanded="true" aria-controls="now-playing-embed" aria-label="Minimize player">
-        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" /></svg>
-      </button>
-      <button class="np-btn np-eject" id="now-playing-eject" type="button" aria-label="Eject (stop and close)" title="Eject">
-        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 2.2 10 7H2z" /><path d="M2.5 9.5h7" /></svg>
-      </button>
+      <button class="np-btn ascii-btn" id="now-playing-list" type="button" aria-expanded="false" aria-controls="track-list" aria-label="Show songs">list</button>
+      <button class="np-btn ascii-btn np-minimize" id="now-playing-minimize" type="button" aria-expanded="true" aria-controls="now-playing-embed" aria-label="Minimize player"><span class="i-collapse" aria-hidden="true">v</span><span class="i-expand" aria-hidden="true">^</span></button>
+      <button class="np-btn ascii-btn np-eject" id="now-playing-eject" type="button" aria-label="Eject (stop and close)" title="Eject">x</button>
     </div>
     <div class="np-scrub">
       <span class="np-time" id="now-playing-elapsed">0:00</span>
@@ -146,17 +134,15 @@
         <p class="tl-label" id="track-list-count">Songs</p>
         <h3 class="tl-title" id="track-list-title"></h3>
       </div>
-      <button class="np-btn" id="track-list-close" type="button" aria-label="Close song list">
-        <svg class="np-stroke" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3 3 9" /></svg>
-      </button>
+      <button class="np-btn ascii-btn" id="track-list-close" type="button" aria-label="Close song list">x</button>
     </header>
     <ol class="tl-items" id="track-list-items"></ol>
   </section>
 
   <dialog class="modal about" id="about" aria-labelledby="about-title">
-    <div class="about-card card">
-      <button class="about-close text-btn small" id="about-close" type="button">Close</button>
-      <h2 id="about-title">About</h2>
+    <div class="about-card card" data-ascii-title="about">
+      <button class="about-close text-btn ascii-btn small" id="about-close" type="button">Close</button>
+      <h2 class="visually-hidden" id="about-title">About</h2>
       <p>
         Calvin is a full-stack software engineer who loves building and leading projects
         end to end, from first idea to launch. He's drawn to complex problems, is always
@@ -171,12 +157,12 @@
   </dialog>
 
   <dialog class="modal resume" id="resume" aria-labelledby="resume-title">
-    <div class="resume-sheet card">
+    <div class="resume-sheet card" data-ascii-title="resume">
       <div class="resume-bar">
-        <h2 id="resume-title">Resume</h2>
+        <h2 class="visually-hidden" id="resume-title">Resume</h2>
         <div class="resume-actions">
-          <a class="text-btn small" href="calvin-cheung-resume.pdf" download>Download</a>
-          <button class="text-btn small" id="resume-close" type="button">Close</button>
+          <a class="text-btn ascii-btn small" href="calvin-cheung-resume.pdf" download>Download</a>
+          <button class="text-btn ascii-btn small" id="resume-close" type="button">Close</button>
         </div>
       </div>
       <div class="resume-pages" id="resume-pages">

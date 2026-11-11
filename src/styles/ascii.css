@@ -1,0 +1,247 @@
+/* ---------- ASCII look (see src/ui/ascii.js) ---------- */
+
+/* Menus, panels and dialogs are .card: drawn as a +----+ box of characters
+   (the frame carries the background) with a hard offset shadow. */
+.card {
+  isolation: isolate; /* keeps the frame behind the card's content */
+  background: none;
+  box-shadow: none;
+  border-radius: 0 !important;
+  color: var(--fg);
+  font-family: var(--font-ui);
+}
+
+.ascii-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  font: 13px/14px var(--font-ui); /* tight lines, so the | sides join up */
+  letter-spacing: 0;
+  white-space: pre;
+  color: var(--muted);
+  background: var(--card);
+  box-shadow: 6px 6px 0 rgb(var(--shadow-rgb) / calc(0.14 * var(--shadow-k)));
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Range input shown as [####----]: the real input sits invisibly on top. */
+.ascii-range {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.ascii-bar {
+  display: block;
+  font: 13px/16px var(--font-ui);
+  white-space: pre;
+  color: var(--fg);
+}
+
+.ascii-range input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.ascii-range input:disabled {
+  cursor: default;
+}
+
+.ascii-range:has(input:disabled) .ascii-bar {
+  color: var(--muted);
+}
+
+.ascii-range:has(input:focus-visible) .ascii-bar {
+  outline: 1px solid var(--fg);
+  outline-offset: 2px;
+}
+
+/* [bracketed] buttons. Hover, focus and "on" invert them, terminal style. */
+.ascii-btn {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-family: var(--font-ui);
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ascii-btn::before {
+  content: "[";
+  color: var(--muted);
+}
+
+.ascii-btn::after {
+  content: "]";
+  color: var(--muted);
+}
+
+.ascii-btn:hover,
+.ascii-btn:focus-visible,
+.ascii-btn[aria-expanded="true"],
+.ascii-btn[aria-pressed="true"] {
+  background: var(--fg);
+  color: var(--bg);
+  outline: none;
+}
+
+.ascii-btn:hover::before,
+.ascii-btn:hover::after,
+.ascii-btn:focus-visible::before,
+.ascii-btn:focus-visible::after,
+.ascii-btn[aria-expanded="true"]::before,
+.ascii-btn[aria-expanded="true"]::after,
+.ascii-btn[aria-pressed="true"]::before,
+.ascii-btn[aria-pressed="true"]::after {
+  color: inherit;
+}
+
+.ascii-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+  background: none;
+  color: var(--fg);
+}
+
+/* Menu rows: a "> " cursor and inverted colours on the row you're on. */
+.ascii-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0;
+  width: 100%;
+  padding: 0 1ch 0 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--fg);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 24px;
+  text-align: left;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ascii-row::before {
+  content: "  ";
+  flex: none;
+  white-space: pre;
+}
+
+.ascii-row:hover,
+.ascii-row:focus-visible {
+  background: var(--fg);
+  color: var(--bg);
+  outline: none;
+}
+
+.ascii-row:hover::before,
+.ascii-row:focus-visible::before {
+  content: "> ";
+}
+
+/* Radio options: ( ) Light (*) Dark */
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 2ch;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 22px;
+}
+
+.segmented label {
+  position: relative;
+  cursor: pointer;
+}
+
+.segmented input,
+.ascii-check-row input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmented span {
+  color: var(--muted);
+  white-space: pre;
+}
+
+.segmented span::before {
+  content: "( ) ";
+}
+
+.segmented input:checked + span {
+  color: var(--fg);
+}
+
+.segmented input:checked + span::before {
+  content: "(*) ";
+}
+
+.segmented label:hover span {
+  color: var(--fg);
+}
+
+.segmented input:focus-visible + span,
+.ascii-check-row input:focus-visible + .ascii-check {
+  outline: 1px solid var(--fg);
+  outline-offset: 2px;
+}
+
+/* Checkbox: [x] / [ ] */
+.ascii-check-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2ch;
+  cursor: pointer;
+}
+
+.ascii-check {
+  white-space: pre;
+}
+
+.ascii-check::before {
+  content: "[ ]";
+}
+
+.ascii-check-row input:checked + .ascii-check::before {
+  content: "[x]";
+}
+
+/* A labelled rule: -- Projects ---------- */
+.ascii-rule {
+  display: flex;
+  gap: 1ch;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 24px;
+}
+
+.ascii-rule::before {
+  content: "--";
+  flex: none;
+}
+
+.ascii-rule::after {
+  content: "----------------------------------------------------------------------------------------------------";
+  flex: 1;
+  overflow: hidden;
+  contain: inline-size; /* fills the width without making the box wider */
+}

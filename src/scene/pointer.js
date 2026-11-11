@@ -6,6 +6,9 @@ import { canvas, camera } from "./stage.js";
 
 const LONG_PRESS_MS = 500;
 
+// Class put on the canvas while hovering a toy, by the toy's `cursor`.
+const HOVER_CLASS = { pointer: "point", crosshair: "draw" };
+
 /**
  * - `getToy()` returns the current toy (or null while one is loading).
  * - `openMenu(x, y)` opens the toy menu at a screen position.
@@ -64,15 +67,16 @@ export function setupPointer({ getToy, openMenu }) {
     const toy = getToy();
     drag = { handle: toy.grab(hit), pointerId: e.pointerId };
     canvas.setPointerCapture(e.pointerId);
-    if (toy.cursor !== "pointer") canvas.classList.add("grabbing");
+    if (!toy.cursor) canvas.classList.add("grabbing");
   });
 
   canvas.addEventListener("pointermove", (e) => {
     if (longPress && Math.hypot(e.clientX - longPress.x, e.clientY - longPress.y) > 10) cancelLongPress();
     if (!drag) {
-      // Toys can ask for a pointer cursor (buttons) instead of the grab hand.
+      // Toys can ask for a pointer cursor (buttons) or a crosshair (drawing)
+      // instead of the grab hand.
       const toy = getToy();
-      if (toy) canvas.classList.toggle(toy.cursor === "pointer" ? "point" : "grab", !!pick(e));
+      if (toy) canvas.classList.toggle(HOVER_CLASS[toy.cursor] ?? "grab", !!pick(e));
       return;
     }
     setPointer(e);

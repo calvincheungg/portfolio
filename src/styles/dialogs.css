@@ -10,43 +10,28 @@
 
 .about-card {
   position: relative;
-  width: min(440px, 100%);
-  padding: 36px 32px 30px;
-  border-radius: 14px;
-  box-shadow: var(--shadow-dialog);
+  width: min(60ch, 100%);
+  padding: 30px 3ch 26px;
   overflow: hidden;
 }
 
-/* Wooden strip along the top, matching the blocks. */
-.about-card::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto;
-  height: 8px;
-  background: var(--wood-strip);
-}
-
-.about-card h2 {
-  font-family: var(--font-letter);
-  font-weight: 400;
-  font-size: 34px;
-  margin-bottom: 14px;
-}
-
 .about-card p {
-  font-size: 16px;
-  line-height: 1.65;
+  font-size: 14px;
+  line-height: 1.7;
   color: var(--card-text);
 }
 
 .about-card p + p {
-  margin-top: 12px;
+  margin-top: 14px;
 }
 
+/* [Close] sits on the frame's top edge, like a window's close box. */
 .about-close {
   position: absolute;
-  top: 22px;
-  right: 22px;
+  top: 0;
+  right: 2ch;
+  line-height: 16px;
+  background: var(--card);
 }
 
 /* ---------- Resume viewer ---------- */
@@ -57,36 +42,28 @@
 }
 
 .resume-sheet {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: min(860px, 100%);
   height: 100%;
   max-height: 1200px;
-  border-radius: 14px;
-  box-shadow: var(--shadow-dialog);
-  overflow: hidden;
+  padding: 24px 2ch 18px;
 }
 
+/* [Download] [Close] on the frame's top edge. */
 .resume-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 22px;
-  border-top: 8px solid;
-  border-image: var(--wood-strip) 1; /* same wood strip as the About card */
-  border-bottom: 1px solid var(--divider);
-}
-
-.resume-bar h2 {
-  font-family: var(--font-letter);
-  font-weight: 400;
-  font-size: 24px;
+  position: absolute;
+  top: 0;
+  right: 2ch;
+  z-index: 1;
 }
 
 .resume-actions {
   display: flex;
-  gap: 20px;
+  gap: 1ch;
+  background: var(--card);
+  line-height: 16px;
 }
 
 .resume-pages {
@@ -135,5 +112,4 @@
 
 @media (max-width: 600px) {
   .resume-pages { padding: 10px; gap: 10px; }
-  .resume-bar { padding: 12px 16px; }
 }

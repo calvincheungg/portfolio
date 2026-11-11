@@ -61,10 +61,11 @@ export function renderIfNeeded() {
 export const bounds = { halfWidth: 5 };
 const resizeListeners = new Set();
 
-/** Run `fn(bounds)` now and after every resize. */
+/** Run `fn(bounds)` now and after every resize. Returns a function that stops it. */
 export function onResize(fn) {
   resizeListeners.add(fn);
   fn(bounds);
+  return () => resizeListeners.delete(fn);
 }
 
 function resize() {

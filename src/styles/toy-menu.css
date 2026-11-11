@@ -1,69 +1,54 @@
 /* ---------- Toy picker (right-click menu) ---------- */
+/*  (*) Blocks      the toy showing
+    ( ) Newton's cradle
+    ---------------
+        Reset                                                          */
 
 .toy-menu {
   position: fixed;
   z-index: 10;
-  min-width: 190px;
-  padding: 6px;
-  border-radius: 10px;
+  min-width: 26ch;
+  padding: 22px 2ch 18px;
   visibility: hidden; /* GSAP reveals it */
 }
 
-.toy-menu-title {
-  padding: 6px 12px 4px;
-  font-family: var(--font-ui);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
+/* Rows are .ascii-row; the cursor and radio mark share its ::before. */
+.toy-menu-item[role="menuitemradio"]::before {
+  content: "  ( ) ";
 }
 
-.toy-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 12px;
-  border: 0;
-  border-radius: 6px;
-  background: none;
-  color: var(--fg);
-  font-family: var(--font-ui);
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
+.toy-menu-item[role="menuitemradio"][aria-checked="true"]::before {
+  content: "  (*) ";
 }
 
-/* Dot marks the toy that's showing. */
-.toy-menu-item::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: transparent;
+.toy-menu-item[role="menuitemradio"]:is(:hover, :focus-visible)::before {
+  content: "> ( ) ";
 }
 
-.toy-menu-item[aria-checked="true"]::before {
-  background: var(--fg);
+.toy-menu-item[role="menuitemradio"][aria-checked="true"]:is(:hover, :focus-visible)::before {
+  content: "> (*) ";
+}
+
+/* Commands (Reset) line up with the toy names. */
+.toy-menu-item[role="menuitem"]::before {
+  content: "      ";
+}
+
+.toy-menu-item[role="menuitem"]:is(:hover, :focus-visible)::before {
+  content: ">     ";
 }
 
 .toy-menu-divider {
-  margin: 6px 8px;
+  contain: inline-size; /* fills the width without making the menu wider */
+  height: 16px;
+  margin: 2px 0;
   border: 0;
-  border-top: 1px solid var(--divider);
+  overflow: hidden;
+  font: 13px/16px var(--font-ui);
+  white-space: nowrap;
+  color: var(--muted);
 }
 
-/* Commands (e.g. Reset) have no selection dot; keep their text aligned with the toys. */
-.toy-menu-item[role="menuitem"]::before {
-  display: none;
-}
-
-.toy-menu-item[role="menuitem"] {
-  padding-left: 28px;
-}
-
-.toy-menu-item:hover,
-.toy-menu-item:focus-visible {
-  background: var(--hover);
-  outline: none;
+.toy-menu-divider::before {
+  content: "------------------------------------------------------------------------------------------------------------------------";
 }

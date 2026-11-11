@@ -39,8 +39,16 @@ createPopover({
 });
 
 // Clicking the email copies it (most visitors have no mail app set up) and
-// briefly shows "Copied". If copying isn't allowed, the mailto: link opens.
+// briefly shows "copied!" in its place (padded to the same width, so the rung
+// doesn't change size). If copying isn't allowed, the mailto: link opens.
 const email = document.getElementById("email-copy");
+const emailLabel = email.querySelector(".rung-label");
+const address = emailLabel.textContent;
+const copiedText = (() => {
+  const text = "copied!";
+  const left = Math.floor((address.length - text.length) / 2);
+  return " ".repeat(left) + text.padEnd(address.length - left);
+})();
 const announce = document.createElement("span");
 announce.className = "visually-hidden";
 announce.setAttribute("aria-live", "polite");
@@ -50,18 +58,17 @@ let copiedTimer;
 email.addEventListener("click", async (e) => {
   if (e.metaKey || e.ctrlKey || e.shiftKey || !navigator.clipboard) return;
   e.preventDefault();
-  const address = email.href.replace(/^mailto:/, "");
   try {
-    await navigator.clipboard.writeText(address);
+    await navigator.clipboard.writeText(email.href.replace(/^mailto:/, ""));
   } catch {
     location.href = email.href;
     return;
   }
-  email.classList.add("copied");
+  emailLabel.textContent = copiedText;
   announce.textContent = "Email copied";
   clearTimeout(copiedTimer);
   copiedTimer = setTimeout(() => {
-    email.classList.remove("copied");
+    emailLabel.textContent = address;
     announce.textContent = "";
   }, 1600);
 });

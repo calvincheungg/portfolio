@@ -1,11 +1,15 @@
 // Entry point.
 import "./settings.js"; // applies the saved theme
+import { asciiFrame } from "./ui/ascii.js";
 import "./ui/work-menu.js";
 import "./ui/contact.js";
 import "./ui/about.js";
 import "./ui/resume.js";
 import "./ui/settings-panel.js";
 // The music player (src/music) loads with the CD player toy.
+
+// Menus, panels and dialogs are drawn as ASCII boxes.
+for (const card of document.querySelectorAll(".card")) asciiFrame(card);
 
 // The 3D toys load separately, so if they can't start (no WebGL on old devices
 // or locked-down machines) the menus above still work. A still picture of the

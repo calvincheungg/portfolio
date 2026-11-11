@@ -1,8 +1,10 @@
 /* All site styles, in cascade order. Linked from index.html. */
 @import "./base.css";
+@import "./ascii.css";
 @import "./work-menu.css";
 @import "./contact.css";
 @import "./dialogs.css";
 @import "./toy-menu.css";
 @import "./settings.css";
 @import "./music.css";
+@import "./drawing.css";

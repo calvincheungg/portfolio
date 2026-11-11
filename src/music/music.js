@@ -1,7 +1,8 @@
 import { gsap } from "gsap";
 import TRACKS from "virtual:playlist-tracks";
-import { reduceMotion } from "../settings.js";
+import { reduceMotion, onSettingChange } from "../settings.js";
 import { formatTime } from "../lib/format.js";
+import { asciiRange } from "../ui/ascii.js";
 
 // Music playback through Spotify's embedded player, plus the "now playing"
 // widget that keeps it going while visitors switch toys.
@@ -151,11 +152,50 @@ function showWidget(show) {
   else gsap.to(widget, { autoAlpha: 0, y: 16, duration: 0.2, ease: "power1.in" });
 }
 
+// ---------- Marquee ----------
+// A title too long for the widget scrolls sideways, looping: two copies of the
+// text side by side, slid along by exactly one copy's width. Hovering pauses
+// it; with Reduce motion it's cut off with "…" instead.
+const MARQUEE_GAP = "   ***   ";
+const MARQUEE_SPEED = 32; // px per second
+let marqueeText = null;
+
+function drawMarquee() {
+  const text = marqueeText ?? "";
+  const track = document.createElement("span");
+  track.className = "marquee-track";
+  track.textContent = text;
+  titleEl.replaceChildren(track);
+  // (Measured as drawn: scrollWidth is always 0 for inline elements.)
+  const scroll = !reduceMotion() && track.getBoundingClientRect().width > titleEl.clientWidth + 1;
+  titleEl.classList.toggle("is-scrolling", scroll);
+  if (!scroll) return;
+  track.textContent = text + MARQUEE_GAP + text + MARQUEE_GAP;
+  const distance = track.getBoundingClientRect().width / 2;
+  titleEl.style.setProperty("--marquee-distance", `${-distance}px`);
+  titleEl.style.setProperty("--marquee-time", `${distance / MARQUEE_SPEED}s`);
+}
+
+function setMarquee(text) {
+  if (text === marqueeText) return; // don't restart it on every state update
+  marqueeText = text;
+  titleEl.title = text; // full text on hover
+  drawMarquee();
+}
+
+// Re-check when the widget's width changes (phones rotating) or the setting does.
+let marqueeWidth = 0;
+new ResizeObserver(() => {
+  if (titleEl.clientWidth === marqueeWidth) return;
+  marqueeWidth = titleEl.clientWidth;
+  drawMarquee();
+}).observe(titleEl);
+onSettingChange((key) => key === "reduceMotion" && drawMarquee());
+
 listeners.add(() => {
   const { playlist, track } = state;
   // "Artist: Song" when we know the track; otherwise the playlist's name.
-  titleEl.textContent = track ? `${track.artist}: ${track.title}` : (playlist?.title ?? "");
-  titleEl.title = titleEl.textContent; // full text on hover when truncated
+  setMarquee(track ? `${track.artist}: ${track.title}` : (playlist?.title ?? ""));
   labelEl.textContent = track && playlist ? `Now playing · ${playlist.title}` : "Now playing";
   discEl.style.setProperty("--label", playlist?.color ?? "transparent");
   discEl.classList.toggle("spinning", !!playlist && !state.isPaused);
@@ -180,6 +220,8 @@ function currentPosition() {
   return Math.min(state.position + elapsed, state.duration);
 }
 
+const seekBar = asciiRange(seekInput, { fill: "=", head: ">" }); // [=====>-----]
+
 function drawScrubber(position = currentPosition()) {
   const duration = state.duration;
   seekInput.max = String(duration);
@@ -188,6 +230,7 @@ function drawScrubber(position = currentPosition()) {
   seekInput.style.setProperty("--progress", duration ? `${(position / duration) * 100}%` : "0%");
   elapsedEl.textContent = formatTime(position);
   totalEl.textContent = formatTime(duration);
+  seekBar.update();
 }
 
 // Spotify only reports the position every so often, so animate in between,

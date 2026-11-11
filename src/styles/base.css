@@ -6,23 +6,14 @@
   --card-text: #4a453e;
   --well: #ece7df; /* behind the resume pages */
   --backdrop: rgba(29, 27, 24, 0.22);
-  --divider: rgba(29, 27, 24, 0.08);
-  --hover: rgba(29, 27, 24, 0.06);
   --shadow-rgb: 60 40 20;
   --shadow-k: 1; /* shadow strength multiplier */
   color-scheme: light;
 
   /* Fonts. JS reads these too (src/lib/fonts.js), so they're defined once. */
   --font-ui: "Space Mono", ui-monospace, monospace;
-  --font-letter: "Abril Fatface", Georgia, serif; /* blocks, CDs, headings */
-  --font-body: "Inter", system-ui, -apple-system, sans-serif;
-
-  /* Shadows for floating cards (menus, panels) and dialogs. */
-  --shadow-pop: 0 12px 32px rgb(var(--shadow-rgb) / calc(0.2 * var(--shadow-k))),
-    0 1px 4px rgb(var(--shadow-rgb) / calc(0.12 * var(--shadow-k)));
-  --shadow-dialog: 0 24px 60px rgb(var(--shadow-rgb) / calc(0.25 * var(--shadow-k))),
-    0 2px 8px rgb(var(--shadow-rgb) / calc(0.12 * var(--shadow-k)));
-  --wood-strip: linear-gradient(90deg, hsl(33, 55%, 72%), hsl(29, 48%, 60%), hsl(33, 55%, 70%));
+  --font-letter: "Abril Fatface", Georgia, serif; /* painted on the 3D blocks and CDs */
+  --font-body: var(--font-ui); /* everything reads as a terminal */
 }
 
 /* Dark theme: follows the system unless Settings picked Light (data-theme is
@@ -36,8 +27,6 @@
     --card-text: #c9c1b5;
     --well: #141210;
     --backdrop: rgba(0, 0, 0, 0.45);
-    --divider: rgba(238, 232, 223, 0.1);
-    --hover: rgba(238, 232, 223, 0.07);
     --shadow-rgb: 0 0 0;
     --shadow-k: 2;
     color-scheme: dark;
@@ -52,8 +41,6 @@
   --card-text: #c9c1b5;
   --well: #141210;
   --backdrop: rgba(0, 0, 0, 0.45);
-  --divider: rgba(238, 232, 223, 0.1);
-  --hover: rgba(238, 232, 223, 0.07);
   --shadow-rgb: 0 0 0;
   --shadow-k: 2;
   color-scheme: dark;
@@ -111,6 +98,7 @@ body {
 #stage.grab { cursor: grab; }
 #stage.grabbing { cursor: grabbing; }
 #stage.point { cursor: pointer; }
+#stage.draw { cursor: crosshair; }
 
 /* Overlays let pointer events fall through to the canvas except on links/buttons. */
 .overlay {
@@ -124,6 +112,7 @@ body {
   gap: 16px;
   padding: 28px 32px;
   pointer-events: none;
+  z-index: 6; /* menus drop down over toy toolbars */
 }
 
 .overlay.top { top: 0; }
@@ -161,25 +150,10 @@ body {
 
 /* ---------- Shared pieces ---------- */
 
-/* Quiet text link/button: monospace, faded until hovered or active. */
+/* Header / footer / dialog buttons: [Work], drawn by .ascii-btn (ascii.css). */
 .text-btn {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--fg);
-  font-family: var(--font-ui);
   font-size: 14px;
   letter-spacing: 0.02em;
-  text-decoration: none;
-  cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.15s;
-}
-
-.text-btn:hover,
-.text-btn:focus-visible,
-.text-btn[aria-expanded="true"] {
-  opacity: 1;
 }
 
 .text-btn.small {
@@ -196,12 +170,7 @@ body {
   white-space: nowrap;
 }
 
-/* Floating surface: menus, panels, popups. */
-.card {
-  background: var(--card);
-  color: var(--fg);
-  box-shadow: var(--shadow-pop);
-}
+/* Floating surfaces (menus, panels, popups) are .card: see ascii.css. */
 
 /* Full-screen <dialog>: the dialog itself is the dimmed, blurred backdrop and
    its card sits inside. */

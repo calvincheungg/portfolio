@@ -130,21 +130,22 @@
     }
 
     h1 {
-      font-family: "Abril Fatface", Georgia, serif;
-      font-weight: 400;
-      font-size: clamp(34px, 7vw, 48px);
+      font-weight: 700;
+      font-size: clamp(22px, 5vw, 30px);
       margin-bottom: 10px;
     }
     p { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
+    /* [<- Back to the toys], inverted on hover like the site's buttons. */
     a {
       color: var(--fg);
       font-size: 14px;
       letter-spacing: 0.02em;
       text-decoration: none;
-      opacity: 0.7;
-      transition: opacity 0.15s;
     }
-    a:hover, a:focus-visible { opacity: 1; }
+    a::before { content: "["; color: var(--muted); }
+    a::after { content: "]"; color: var(--muted); }
+    a:hover, a:focus-visible { background: var(--fg); color: var(--bg); outline: none; }
+    a:hover::before, a:hover::after, a:focus-visible::before, a:focus-visible::after { color: inherit; }
 
     @media (prefers-reduced-motion: reduce) {
       .block { animation: none; rotate: 90deg; }
@@ -158,9 +159,9 @@
       <div class="floor-shadow"></div>
       <div class="block"><span>?</span></div>
     </div>
-    <h1>Page not found</h1>
+    <h1>404: page not found</h1>
     <p>This page toppled over. It may have moved, or never existed.</p>
-    <a href="/">← Back to the toys</a>
+    <a href="/">&lt;- Back to the toys</a>
   </main>
 </body>
 </html>

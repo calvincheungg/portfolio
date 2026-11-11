@@ -1,4 +1,6 @@
-/* ---------- Contact rope ladder ---------- */
+/* ---------- Contact ladder (ASCII) ---------- */
+/*  |=[ LinkedIn ]==|   Ropes of | characters, rungs of =[ label ]=.
+    It unrolls from the Contact button (contact.js). */
 
 .contact {
   position: relative;
@@ -6,11 +8,12 @@
 
 .ladder {
   position: absolute;
-  top: calc(100% + 10px);
-  right: -14px;
+  top: calc(100% + 8px);
+  right: 0;
   width: max-content; /* widen to fit the email address */
-  min-width: 150px;
-  padding: 6px 0 4px;
+  min-width: 30ch;
+  padding: 4px 0;
+  font: 13px/16px var(--font-ui);
   perspective: 500px;
   visibility: hidden; /* GSAP reveals it */
 }
@@ -19,20 +22,25 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 2px;
-  border-radius: 1px;
-  background: repeating-linear-gradient(#a07a4f 0 4px, #7d5a35 4px 7px);
+  width: 1ch;
+  overflow: hidden;
+  white-space: pre;
+  color: var(--muted);
   transform-origin: top;
 }
 
-.rope.left { left: 14px; }
-.rope.right { right: 14px; }
+.rope::before {
+  content: "|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|";
+}
+
+.rope.left { left: 0; }
+.rope.right { right: 0; }
 
 .ladder ul {
   list-style: none;
-  padding: 0;
+  padding: 0 1ch;
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 
 .rung {
@@ -40,43 +48,49 @@
 }
 
 .overlay .rung a,
-.rung span {
-  display: block;
-  padding: 8px 12px;
-  text-align: center;
-  font-family: var(--font-ui);
+.rung-text {
+  display: flex;
+  align-items: center;
   font-size: 13px;
-  pointer-events: auto; /* lets the plain-text rungs be selected and copied */
-  color: #3b2410;
-  opacity: 1;
-  border-radius: 6px;
-  background: linear-gradient(hsl(33, 55%, 72%), hsl(29, 48%, 62%));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 240, 215, 0.6),
-    inset 0 -2px 0 rgba(90, 50, 20, 0.25),
-    0 4px 10px rgb(var(--shadow-rgb) / calc(0.18 * var(--shadow-k)));
-  transition: transform 0.15s, box-shadow 0.15s;
+  line-height: 24px;
+  color: var(--fg);
+  text-decoration: none;
+  white-space: nowrap;
+  pointer-events: auto; /* lets the phone number be selected and copied */
 }
 
-.overlay .rung a:hover {
-  transform: translateY(-1px);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 240, 215, 0.6),
-    inset 0 -2px 0 rgba(90, 50, 20, 0.25),
-    0 6px 14px rgb(var(--shadow-rgb) / calc(0.24 * var(--shadow-k)));
+/* The rung's wood: = from rope to label on both sides. */
+.overlay .rung a::before,
+.overlay .rung a::after,
+.rung-text::before,
+.rung-text::after {
+  content: "========================================================================================================================";
+  flex: 1 1 0;
+  min-width: 1ch;
+  overflow: hidden;
+  contain: inline-size; /* fills the rung without making the ladder wider */
+  color: var(--muted);
 }
 
-/* Email rung: keeps its width while showing "Copied". */
-.overlay .rung a.copied {
-  position: relative;
-  color: transparent;
+.rung-label {
+  background: var(--bg);
+  white-space: pre;
 }
 
-.overlay .rung a.copied::after {
-  content: "Copied ✓";
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: #3b2410;
+.rung-label::before {
+  content: "[ ";
+}
+
+.rung-label::after {
+  content: " ]";
+}
+
+.overlay .rung a:hover .rung-label,
+.overlay .rung a:focus-visible .rung-label {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+.overlay .rung a:focus-visible {
+  outline: none;
 }
