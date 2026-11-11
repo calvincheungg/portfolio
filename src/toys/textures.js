@@ -36,3 +36,18 @@ export function roundRect(c, x, y, w, h, r) {
   c.arcTo(x, y, x + w, y, r);
   c.closePath();
 }
+
+/** Fill with `color` plus a little per-pixel noise. */
+export function noisyFill(c, w, h, color, amount) {
+  c.fillStyle = color;
+  c.fillRect(0, 0, w, h);
+  const img = c.getImageData(0, 0, w, h);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const n = (Math.random() - 0.5) * amount;
+    d[i] += n;
+    d[i + 1] += n;
+    d[i + 2] += n;
+  }
+  c.putImageData(img, 0, 0);
+}

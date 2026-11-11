@@ -77,13 +77,16 @@
   cursor: pointer;
 }
 
+/* --spread opens a gap inside the brackets (animated on hover, see hover.js). */
 .ascii-btn::before {
   content: "[";
+  margin-right: var(--spread, 0px);
   color: var(--muted);
 }
 
 .ascii-btn::after {
   content: "]";
+  margin-left: var(--spread, 0px);
   color: var(--muted);
 }
 
@@ -105,6 +108,42 @@
 .ascii-btn[aria-pressed="true"]::before,
 .ascii-btn[aria-pressed="true"]::after {
   color: inherit;
+}
+
+/* The corner buttons (Work, Contact, About, Settings), the resume's Download
+   and Close, and the About card's Close don't invert on hover: their brackets
+   spring apart instead (hover.js). Keyboard focus also gets an underline, so
+   it's easy to see where you are. */
+.overlay .text-btn.ascii-btn:hover,
+.overlay .text-btn.ascii-btn:focus-visible,
+.resume-actions .ascii-btn:hover,
+.resume-actions .ascii-btn:focus-visible,
+#about-close:hover,
+#about-close:focus-visible {
+  background: none;
+  color: var(--fg);
+}
+
+.overlay .text-btn.ascii-btn:hover::before,
+.overlay .text-btn.ascii-btn:hover::after,
+.overlay .text-btn.ascii-btn:focus-visible::before,
+.overlay .text-btn.ascii-btn:focus-visible::after,
+.resume-actions .ascii-btn:hover::before,
+.resume-actions .ascii-btn:hover::after,
+.resume-actions .ascii-btn:focus-visible::before,
+.resume-actions .ascii-btn:focus-visible::after,
+#about-close:hover::before,
+#about-close:hover::after,
+#about-close:focus-visible::before,
+#about-close:focus-visible::after {
+  color: var(--muted);
+}
+
+.overlay .text-btn.ascii-btn:focus-visible,
+.resume-actions .ascii-btn:focus-visible,
+#about-close:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .ascii-btn:disabled {
@@ -244,4 +283,26 @@
   flex: 1;
   overflow: hidden;
   contain: inline-size; /* fills the width without making the box wider */
+}
+
+/* Sparkles falling from a hovered corner button (hover.js). */
+.ascii-spark {
+  position: fixed;
+  z-index: 20;
+  font: 12px/1 var(--font-ui);
+  color: var(--fg);
+  white-space: pre;
+  pointer-events: none;
+  user-select: none;
+}
+
+.ascii-spark.dim {
+  color: var(--muted);
+}
+
+/* The About card's Close sits on the frame's edge, so it keeps the card's
+   colour behind it to hide the border characters. */
+#about-close:hover,
+#about-close:focus-visible {
+  background: var(--card);
 }

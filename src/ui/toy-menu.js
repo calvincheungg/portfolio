@@ -51,6 +51,7 @@ export function createToyMenu(el, toys, onSelect, actions = []) {
   }
 
   window.addEventListener("resize", popover.close);
+  el.addEventListener("contextmenu", (e) => e.preventDefault()); // no browser menu over this one
   el.addEventListener("keydown", (e) => {
     const index = all.indexOf(document.activeElement);
     if (e.key === "ArrowDown") all[(index + 1) % all.length].focus();

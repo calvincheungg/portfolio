@@ -6,6 +6,7 @@ import "./ui/contact.js";
 import "./ui/about.js";
 import "./ui/resume.js";
 import "./ui/settings-panel.js";
+import "./ui/hover.js";
 // The music player (src/music) loads with the CD player toy.
 
 // Menus, panels and dialogs are drawn as ASCII boxes.

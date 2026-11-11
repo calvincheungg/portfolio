@@ -41,5 +41,11 @@ export const PLAYLISTS = [
     subtitle: "No Voices Playlist",
     url: "https://open.spotify.com/playlist/5d7dIopw1aBf8nuuKWBAJi?si=2b85c4dd2bb94564",
     color: "#d2cf19"
+  },
+  {
+    title: "Strokes",
+    subtitle: "Strokes Playlist",
+    url: "https://open.spotify.com/playlist/2gvjPQfbEb2uD4gcOSAszd?si=3b516b8a86404923",
+    color: "#000000f3"
   }
 ];

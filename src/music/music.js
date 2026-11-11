@@ -27,6 +27,7 @@ const discEl = widget.querySelector(".np-disc");
 const prevBtn = document.getElementById("now-playing-prev");
 const toggleBtn = document.getElementById("now-playing-toggle");
 const nextBtn = document.getElementById("now-playing-next");
+const shuffleBtn = document.getElementById("now-playing-shuffle");
 const ejectBtn = document.getElementById("now-playing-eject");
 const minimizeBtn = document.getElementById("now-playing-minimize");
 const embedSlot = document.getElementById("now-playing-embed");
@@ -45,7 +46,34 @@ const state = {
   position: 0,
   duration: 0,
   positionAt: 0,
+  shuffle: loadShuffle(), // play the playlist's songs in a random order
 };
+// Shuffle: remembered between visits. While it's on, songs come from a shuffled
+// running order (every song once before any repeats), and "back" retraces the
+// songs actually played.
+const SHUFFLE_KEY = "portfolio-shuffle";
+function loadShuffle() {
+  try {
+    return localStorage.getItem(SHUFFLE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+let order = []; // shuffled song indexes still to come
+let history = []; // indexes played this time round, for "back"
+
+/** The next song when shuffling: from the shuffled order, refilled as it runs out. */
+function shuffledNext() {
+  if (!order.length) {
+    order = state.queue.map((_, i) => i).filter((i) => i !== state.index);
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+  }
+  return order.shift() ?? state.index;
+}
+
 const listeners = new Set();
 const notify = () => listeners.forEach((fn) => fn(state));
 
@@ -203,12 +231,14 @@ listeners.add(() => {
   widget.classList.toggle("is-paused", state.isPaused);
   toggleBtn.setAttribute("aria-label", state.isPaused ? "Play" : "Pause");
   prevBtn.disabled = nextBtn.disabled = !state.queue.length;
+  shuffleBtn.setAttribute("aria-pressed", String(state.shuffle));
 });
 
 minimizeBtn.addEventListener("click", () => setMinimized(!minimized));
 prevBtn.addEventListener("click", () => music.previous());
 toggleBtn.addEventListener("click", () => music.toggle());
 nextBtn.addEventListener("click", () => music.next());
+shuffleBtn.addEventListener("click", () => music.toggleShuffle());
 ejectBtn.addEventListener("click", () => music.stop());
 
 // ---------- Scrubber ----------
@@ -276,6 +306,11 @@ export const music = {
     if (state.playlist !== playlist) {
       state.playlist = playlist;
       state.queue = this.tracksFor(playlist);
+      order = [];
+      history = [];
+    } else if (state.shuffle) {
+      history.push(state.index);
+      order = order.filter((i) => i !== index);
     }
     state.index = index;
     startTrack();
@@ -290,7 +325,9 @@ export const music = {
     }
     state.playlist = playlist;
     state.queue = this.tracksFor(playlist);
-    state.index = 0;
+    order = [];
+    history = [];
+    state.index = state.shuffle && state.queue.length ? Math.floor(Math.random() * state.queue.length) : 0;
     await startTrack();
   },
 
@@ -301,7 +338,10 @@ export const music = {
 
   next() {
     if (!state.queue.length) return;
-    state.index = (state.index + 1) % state.queue.length;
+    if (state.shuffle) {
+      history.push(state.index);
+      state.index = shuffledNext();
+    } else state.index = (state.index + 1) % state.queue.length;
     startTrack();
   },
 
@@ -312,8 +352,22 @@ export const music = {
       this.seek(0);
       return;
     }
-    state.index = (state.index - 1 + state.queue.length) % state.queue.length;
+    if (state.shuffle && history.length) {
+      order.unshift(state.index); // comes round again next
+      state.index = history.pop();
+    } else state.index = (state.index - 1 + state.queue.length) % state.queue.length;
     startTrack();
+  },
+
+  /** Turn shuffle on or off (the current song carries on either way). */
+  toggleShuffle() {
+    state.shuffle = !state.shuffle;
+    order = [];
+    history = [];
+    try {
+      localStorage.setItem(SHUFFLE_KEY, state.shuffle ? "1" : "0");
+    } catch {}
+    notify();
   },
 
   async seek(ms) {

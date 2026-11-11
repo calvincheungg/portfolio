@@ -8,7 +8,7 @@
   position: absolute;
   left: 0;
   top: calc(100% + 10px);
-  min-width: 28ch;
+  min-width: 36ch;
   padding: 22px 2ch 18px;
   font-size: 13px;
   pointer-events: auto;
@@ -35,4 +35,24 @@
 
 .work-heading {
   margin-top: 6px;
+}
+
+/* A line or two about each project, under its link. */
+.work-desc {
+  max-width: 32ch;
+  margin: 0 0 8px 2ch; /* lines up with the link's text */
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+/* Resume: no highlight on hover; its text shakes instead (see work-menu.js). */
+#resume-link:hover,
+#resume-link:focus-visible {
+  background: none;
+  color: var(--fg);
+}
+
+#resume-link .shake {
+  display: inline-block; /* transforms don't apply to inline text */
 }

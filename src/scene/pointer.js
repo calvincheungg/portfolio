@@ -6,8 +6,10 @@ import { canvas, camera } from "./stage.js";
 
 const LONG_PRESS_MS = 500;
 
-// Class put on the canvas while hovering a toy, by the toy's `cursor`.
-const HOVER_CLASS = { pointer: "point", crosshair: "draw" };
+// Class put on the canvas while hovering a toy, by cursor: the toy's
+// `cursorFor(hit)` if it has one, else its `cursor`, else the grab hand.
+// ("none" hides it, for toys that draw their own, like the brush preview.)
+const CURSOR_CLASS = { grab: "grab", pointer: "point", crosshair: "draw", none: "nocursor" };
 
 /**
  * - `getToy()` returns the current toy (or null while one is loading).
@@ -70,18 +72,36 @@ export function setupPointer({ getToy, openMenu }) {
     if (!toy.cursor) canvas.classList.add("grabbing");
   });
 
+  function setCursor(kind) {
+    for (const [name, cls] of Object.entries(CURSOR_CLASS)) canvas.classList.toggle(cls, name === kind);
+  }
+
   canvas.addEventListener("pointermove", (e) => {
     if (longPress && Math.hypot(e.clientX - longPress.x, e.clientY - longPress.y) > 10) cancelLongPress();
+    const toy = getToy();
+    const hit = toy && (toy.hover || !drag) ? pick(e) : undefined;
+    // Toys that track the pointer (e.g. to show a brush) hear about every
+    // move; touch has nothing to hover with.
+    toy?.hover?.(e.pointerType === "touch" ? null : hit ?? null);
     if (!drag) {
-      // Toys can ask for a pointer cursor (buttons) or a crosshair (drawing)
-      // instead of the grab hand.
-      const toy = getToy();
-      if (toy) canvas.classList.toggle(HOVER_CLASS[toy.cursor] ?? "grab", !!pick(e));
+      if (toy) setCursor(hit ? (toy.cursorFor?.(hit) ?? toy.cursor ?? "grab") : null);
       return;
     }
     setPointer(e);
     drag.handle.move(raycaster.ray);
   });
+
+  canvas.addEventListener("pointerleave", () => getToy()?.hover?.(null));
+
+  // Toys can use the scroll wheel over themselves (the CD player's card file).
+  canvas.addEventListener(
+    "wheel",
+    (e) => {
+      const toy = getToy();
+      if (toy?.wheel?.(pick(e) ?? null, e)) e.preventDefault();
+    },
+    { passive: false }
+  );
 
   canvas.addEventListener("pointerup", releaseDrag);
   canvas.addEventListener("pointercancel", releaseDrag);

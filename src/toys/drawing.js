@@ -1,16 +1,19 @@
 import * as THREE from "three";
 import { gsap } from "gsap";
-import { canvasTexture } from "./textures.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { canvasTexture, noisyFill } from "./textures.js";
+import { createSilver } from "./silver.js";
 import { onResize } from "../scene/stage.js";
 import { reduceMotion } from "../settings.js";
 import { popIn } from "../ui/popover.js";
 import { asciiFrame, asciiRange } from "../ui/ascii.js";
+import { shakeOnHover } from "../ui/shake.js";
 import { fonts } from "../lib/fonts.js";
 
-// A wooden swivel easel: a board on side pins with a chalkboard on one face and
+// A worn silver swivel easel: a board on side pins with a chalkboard on one face and
 // a painting canvas on the other. Switching modes spins the board over. Draw by
 // dragging on it; the toolbar along the top picks colours, sizes and tools, and
-// the chalk, eraser and paint pots on the tray can be clicked too.
+// the chalk, eraser and brushes on the tray can be clicked too.
 
 // ---------- Sizes (world units, before the easel is scaled to fit) ----------
 
@@ -22,13 +25,14 @@ const BOARD_W = SURF_W + FRAME * 2;
 const BOARD_H = SURF_H + FRAME * 2;
 const TRAY_Y = 0.22;
 const TRAY_Z = 0.62; // in front of the board, so nothing on it is hidden
-// High enough that the board clears the tray (and a lifted pot) as it spins.
+// High enough that the board clears the tray (and a lifted item) as it spins.
 const PIVOT_Y = TRAY_Y + 0.34 + BOARD_H / 2;
 const POST = 0.16;
 const POST_X = BOARD_W / 2 + 0.1 + POST / 2;
 const POST_H = PIVOT_Y + 0.22;
 const TILT = 0.12; // radians the board leans back, to face the camera
-const EASEL_W = POST_X * 2 + POST;
+const FINIAL = 0.4; // how far the hinge finials stick out past the posts
+const EASEL_W = POST_X * 2 + POST + FINIAL * 2;
 const EASEL_H = PIVOT_Y + BOARD_H / 2;
 const EASEL_Z = 2.2; // stands forward, nearer the camera, so the board looks bigger
 const FEET_FRONT = 1; // how far the feet reach toward the viewer
@@ -69,6 +73,20 @@ const PAINT_SETTINGS = [
   ["mix", "Mixing", 0.2], // how much a stroke blends with the wet paint under it
 ];
 const SETTINGS_KEY = "portfolio-paint-settings";
+// Colours from the picker that have been drawn with, newest first, per side.
+const RECENT_KEY = "portfolio-recent-colours";
+const MAX_RECENT = 8;
+
+function loadRecent() {
+  const recent = { chalk: [], paint: [] };
+  try {
+    const saved = JSON.parse(localStorage.getItem(RECENT_KEY)) || {};
+    for (const mode in recent) {
+      if (Array.isArray(saved[mode])) recent[mode] = saved[mode].filter((c) => /^#[0-9a-f]{6}$/.test(c)).slice(0, MAX_RECENT);
+    }
+  } catch {}
+  return recent;
+}
 
 // Brush shapes. A flat brush is held at a fixed angle, so its stroke is broad
 // in one direction and thin moving along its edge.
@@ -76,21 +94,72 @@ const BRUSHES = [
   ["round", "Round brush"],
   ["flat", "Flat brush"],
 ];
-const FLAT_ANGLE = (-40 * Math.PI) / 180; // the flat brush's edge, from horizontal
+const FLAT_ANGLE = (-40 * Math.PI) / 180; // the flat brush's edge, from horizontal (painted name)
+// The flat brush's own settings (sliders under "flat brush" in the paint
+// settings): key, label, default, min, max, unit. The angle is measured like a
+// protractor (counterclockwise from horizontal); length is % of the brush size.
+const FLAT_SETTINGS = [
+  ["flatAngle", "Angle", 40, 0, 180, "°"],
+  ["flatLength", "Length", 100, 50, 250, "%"],
+];
+/** The flat brush's edge angle in ink space (y down), in radians. */
+const flatAngle = (paint) => (-paint.flatAngle * Math.PI) / 180;
+/** The flat brush's edge length, as a multiple of the brush size. */
+const flatLength = (paint) => paint.flatLength / 100;
 
 function loadPaintSettings() {
   const settings = Object.fromEntries(PAINT_SETTINGS.map(([key, , value]) => [key, value]));
+  for (const [key, , value] of FLAT_SETTINGS) settings[key] = value;
   settings.brush = "round";
   try {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {};
     for (const key in settings) if (typeof saved[key] === typeof settings[key]) settings[key] = saved[key];
     if (!BRUSHES.some(([id]) => id === settings.brush)) settings.brush = "round";
+    for (const [key, , value, min, max] of FLAT_SETTINGS) {
+      if (!(settings[key] >= min && settings[key] <= max)) settings[key] = value;
+    }
   } catch {}
   return settings;
 }
 
 const hexToRGB = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
 const rgbCss = ([r, g, b]) => `rgb(${r | 0},${g | 0},${b | 0})`;
+
+/** "#rrggbb" → { h: 0–360, s: 0–100, l: 0–100 }, rounded to the picker's steps. */
+function hexToHsl(hex) {
+  const [r, g, b] = hexToRGB(hex).map((v) => v / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const d = max - min;
+  let h = 0;
+  let s = 0;
+  if (d) {
+    s = d / (1 - Math.abs(2 * l - 1));
+    h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    h = (h * 60 + 360) % 360;
+  }
+  return { h: Math.round(h), s: Math.round(s * 100), l: Math.round(l * 100) };
+}
+
+function hslToHex({ h, s, l }) {
+  s /= 100;
+  l /= 100;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n) => {
+    const k = (n + h / 30) % 12;
+    return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+  };
+  return "#" + [f(0), f(8), f(4)].map((v) => Math.round(v * 255).toString(16).padStart(2, "0")).join("");
+}
+
+/** A typed hex colour ("f80", "#ff8800") as "#ff8800", or null. */
+function parseHex(text) {
+  const hex = text.trim().replace(/^#/, "").toLowerCase();
+  if (/^[0-9a-f]{6}$/.test(hex)) return `#${hex}`;
+  if (/^[0-9a-f]{3}$/.test(hex)) return `#${[...hex].map((c) => c + c).join("")}`;
+  return null;
+}
 
 /** Mix colour `a` toward `b` by `t` the way pigments mix (a weighted geometric mean), in place. */
 function pigment(a, b, t) {
@@ -142,21 +211,6 @@ function woodTexture() {
       c.stroke();
     }
   });
-}
-
-/** Fill with `color` plus a little per-pixel noise. */
-function noisyFill(c, w, h, color, amount) {
-  c.fillStyle = color;
-  c.fillRect(0, 0, w, h);
-  const img = c.getImageData(0, 0, w, h);
-  const d = img.data;
-  for (let i = 0; i < d.length; i += 4) {
-    const n = (rand() - 0.5) * amount;
-    d[i] += n;
-    d[i + 1] += n;
-    d[i + 2] += n;
-  }
-  c.putImageData(img, 0, 0);
 }
 
 // Slate: dark green with the ghosts of old lessons wiped across it.
@@ -587,8 +641,15 @@ function paintedName(fontFamily) {
 
 // ---------- Toolbar ----------
 
+// The colour picker's sliders: key, label, max.
+const HSL_SLIDERS = [
+  ["h", "Hue", 360],
+  ["s", "Saturation", 100],
+  ["l", "Lightness", 100],
+];
+
 // Toolbar, drawn in text (styles in drawing.css and ascii.css):
-//   ( ) Chalkboard (*) Canvas   [#] # # #   [round] flat   . [o] O
+//   ( ) Chalkboard (*) Canvas   [#] # # # +   [Round] Flat   . [o] O
 //   [erase] [undo] [save] [clear all] [opts]
 function toolbarHTML() {
   const pick = (name, value, label, text) =>
@@ -600,17 +661,31 @@ function toolbarHTML() {
     </div>
     <div class="draw-group draw-swatches" role="radiogroup" aria-label="Colour"></div>
     <div class="draw-group draw-brushes" role="radiogroup" aria-label="Brush">
-      ${BRUSHES.map(([id, label]) => pick("draw-brush", id, label, id)).join("")}
+      ${BRUSHES.map(([id, label]) => pick("draw-brush", id, label, id[0].toUpperCase() + id.slice(1))).join("")}
     </div>
     <div class="draw-group" role="radiogroup" aria-label="Size">
       ${SIZE_NAMES.map((label, i) => pick("draw-size", i, label, ".oO"[i])).join("")}
     </div>
     <div class="draw-group draw-actions">
-      <button class="draw-btn ascii-btn" type="button" data-action="erase" aria-pressed="false" title="Eraser">erase</button>
-      <button class="draw-btn ascii-btn" type="button" data-action="undo" title="Undo (Ctrl/⌘ Z)">undo</button>
-      <button class="draw-btn ascii-btn" type="button" data-action="save" aria-label="Download as an image" title="Download">save</button>
-      <button class="draw-btn ascii-btn" type="button" data-action="clear" title="Wipe the chalkboard and the canvas">clear all</button>
-      <button class="draw-btn ascii-btn" type="button" data-action="settings" aria-expanded="false" aria-controls="draw-settings" aria-label="Paint settings" title="Paint settings">opts</button>
+      <button class="draw-btn ascii-btn" type="button" data-action="erase" aria-pressed="false" title="Eraser">Erase</button>
+      <button class="draw-btn ascii-btn" type="button" data-action="undo" title="Undo (Ctrl/⌘ Z)">Undo</button>
+      <button class="draw-btn ascii-btn" type="button" data-action="save" aria-label="Download as an image" title="Download">Save</button>
+      <button class="draw-btn ascii-btn" type="button" data-action="clear" title="Wipe the chalkboard and the canvas">Clear</button>
+      <button class="draw-btn ascii-btn" type="button" data-action="settings" aria-expanded="false" aria-controls="draw-settings" aria-label="Paint settings" title="Paint settings">Options</button>
+    </div>
+    <div class="draw-picker card" id="draw-picker" role="group" aria-label="Colour picker" data-ascii-title="colour" hidden>
+      <div class="draw-picker-head">
+        <i class="draw-preview"></i>
+        <label class="draw-hex">hex <span>[#<input type="text" maxlength="7" spellcheck="false" autocomplete="off" aria-label="Hex colour">]</span></label>
+      </div>
+      ${HSL_SLIDERS.map(
+        ([key, label, max]) => `<label class="draw-slider draw-${key}">
+          <span>${label}<output data-for="${key}"></output></span>
+          <input type="range" data-hsl="${key}" min="0" max="${max}" step="1">
+        </label>`
+      ).join("")}
+      <p class="ascii-rule">recent</p>
+      <div class="draw-recent" role="group" aria-label="Recent colours"></div>
     </div>
     <div class="draw-settings card" id="draw-settings" role="group" aria-label="Paint settings" data-ascii-title="paint" hidden>
       ${PAINT_SETTINGS.map(
@@ -619,6 +694,15 @@ function toolbarHTML() {
           <input type="range" name="paint-${key}" data-setting="${key}" min="0" max="100" step="1">
         </label>`
       ).join("")}
+      <div class="draw-flat-settings">
+        <p class="ascii-rule">flat brush</p>
+        ${FLAT_SETTINGS.map(
+          ([key, label, , min, max]) => `<label class="draw-slider">
+          <span>${label}<output data-for="${key}"></output></span>
+          <input type="range" name="paint-${key}" data-setting="${key}" data-raw min="${min}" max="${max}" step="1">
+        </label>`
+        ).join("")}
+      </div>
     </div>`;
 }
 
@@ -633,6 +717,7 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     erasing: false,
     size: 1,
     color: { chalk: CHALK[0][1], paint: PAINT[0][1] },
+    custom: { chalk: null, paint: null }, // last colour made in the picker
     paint: loadPaintSettings(),
   };
 
@@ -640,9 +725,15 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
   root.position.z = EASEL_Z;
   scene.add(root);
 
-  // ----- Easel -----
-  const woodMat = track(new THREE.MeshStandardMaterial({ map: track(woodTexture()), roughness: 0.75 }));
-  const box = (w, h, d, mat = woodMat) => {
+  // ----- Easel: old, worn silver -----
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envMap = track(pmrem.fromScene(new RoomEnvironment(), 0.04).texture); // something to reflect
+  pmrem.dispose();
+  const silver = createSilver({ envMap, track, onRedraw: () => (dirty = true) });
+  const { chromeMat, finial } = silver;
+  const woodMat = track(new THREE.MeshStandardMaterial({ map: track(woodTexture()), roughness: 0.75 })); // the eraser's back
+  const box = (w, h, d, mat = chromeMat) => {
+    if (mat === chromeMat) return silver.box(w, h, d);
     const mesh = new THREE.Mesh(track(new THREE.BoxGeometry(w, h, d)), mat);
     mesh.castShadow = true;
     return mesh;
@@ -660,14 +751,33 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     bracket.position.set(side * POST_X, TRAY_Y - 0.06, (TRAY_Z + 0.3) / 2);
     root.add(bracket);
     // Pin through the post into the board, with a round knob outside.
-    const pin = new THREE.Mesh(track(new THREE.CylinderGeometry(0.05, 0.05, POST_X * 2, 16)), woodMat);
+    const pin = new THREE.Mesh(track(new THREE.CylinderGeometry(0.05, 0.05, POST_X * 2, 16)), chromeMat);
     pin.rotation.z = Math.PI / 2;
     pin.position.y = PIVOT_Y;
     root.add(pin);
-    const knob = new THREE.Mesh(track(new THREE.SphereGeometry(0.11, 20, 12)), woodMat);
-    knob.position.set(side * (POST_X + POST / 2 + 0.04), PIVOT_Y, 0);
-    knob.castShadow = true;
+    // A finial caps the pin outside each post, with a smaller one on the post's top.
+    const knob = finial(0.92);
+    knob.rotation.z = (-side * Math.PI) / 2; // pointing outward
+    knob.position.set(side * (POST_X + POST / 2), PIVOT_Y, 0);
     root.add(knob);
+    const cap = finial(0.6);
+    cap.position.set(side * POST_X, POST_H, 0);
+    root.add(cap);
+    // Stepped collars round the post, under the hinge and at its base.
+    for (const y of [PIVOT_Y - 0.3, 0.14]) {
+      const wide = box(POST + 0.07, 0.06, POST + 0.07);
+      wide.position.set(side * POST_X, y, 0);
+      const narrow = box(POST + 0.035, 0.035, POST + 0.035);
+      narrow.position.set(side * POST_X, y + 0.047, 0);
+      root.add(wide, narrow);
+    }
+    // Small finials tip the feet, front and back.
+    for (const end of [1, -1]) {
+      const toe = finial(0.4);
+      toe.rotation.x = (end * Math.PI) / 2;
+      toe.position.set(side * POST_X, 0.05, end > 0 ? FEET_FRONT : -0.75);
+      root.add(toe);
+    }
   }
   const tray = box(POST_X * 2, 0.06, 0.6);
   tray.position.set(0, TRAY_Y, TRAY_Z);
@@ -698,6 +808,20 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     strip.position.set(x, y, 0);
     board.add(strip);
   }
+
+  // Fluted studs on the frame's corners, both faces.
+  for (const x of [-1, 1]) {
+    for (const y of [-1, 1]) {
+      for (const z of [-1, 1]) {
+        const stud = silver.stud();
+        stud.rotation.x = (z * Math.PI) / 2;
+        stud.position.set((x * (SURF_W + FRAME)) / 2, (y * (SURF_H + FRAME)) / 2, (z * frameDepth) / 2);
+        board.add(stud);
+      }
+    }
+  }
+
+  silver.bake(root);
 
   const surfaceGeo = track(new THREE.PlaneGeometry(SURF_W, SURF_H));
 
@@ -788,7 +912,7 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
   // Felt eraser: wooden back, grey felt underneath.
   {
     const eraser = new THREE.Group();
-    const back = box(0.6, 0.1, 0.24);
+    const back = box(0.6, 0.1, 0.24, woodMat);
     back.position.y = 0.04;
     const felt = box(0.6, 0.07, 0.24, track(new THREE.MeshStandardMaterial({ color: 0x55534f, roughness: 1 })));
     felt.position.y = -0.045;
@@ -809,35 +933,42 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     stick.userData = holder.userData;
   });
 
-  const potGeo = track(new THREE.CylinderGeometry(0.15, 0.13, 0.15, 24));
-  const paintGeo = track(new THREE.SphereGeometry(0.13, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2)); // dome
-  const glass = track(new THREE.MeshStandardMaterial({ color: 0xf2efe8, roughness: 0.3 }));
-  ["#c0392b", "#f1c40f", "#3f7d4e", "#2c6e9b"].forEach((color, i) => {
-    const pot = new THREE.Group();
-    const jar = new THREE.Mesh(potGeo, glass);
-    jar.castShadow = true;
-    const paint = new THREE.Mesh(paintGeo, track(new THREE.MeshStandardMaterial({ color, roughness: 0.25 })));
-    paint.scale.y = 0.55;
-    paint.position.y = 0.065; // bulges over the rim
-    pot.add(jar, paint);
-    addItem(pot, { tool: "color", mode: "paint", color, h: 0.15 }, 0.45 + i * 0.45, i % 2 ? 0.05 : -0.05);
-    jar.userData = paint.userData = pot.userData;
-  });
-
-  // A brush lying beside the pots (just for show).
-  {
+  // The two brushes (round and flat) lying on the tray. Their bristles show
+  // the paint colour they're loaded with.
+  const tipMat = track(new THREE.MeshStandardMaterial({ color: PAINT[0][1], roughness: 0.35 }));
+  const handleGeo = track(new THREE.CylinderGeometry(0.032, 0.038, 0.72, 12));
+  const ferruleMat = track(new THREE.MeshStandardMaterial({ color: 0xc9ccd2, metalness: 0.6, roughness: 0.3 }));
+  const brushMeshes = {
+    round: {
+      handle: 0xb03a2e,
+      ferrule: track(new THREE.CylinderGeometry(0.042, 0.034, 0.13, 12)),
+      tip: track(new THREE.ConeGeometry(0.047, 0.17, 12)),
+    },
+    flat: {
+      handle: 0x2f4f3e,
+      ferrule: track(new THREE.CylinderGeometry(0.044, 0.036, 0.13, 12)).scale(1.6, 1, 0.55), // pinched flat
+      tip: track(new THREE.BoxGeometry(0.13, 0.15, 0.035)),
+    },
+  };
+  BRUSHES.forEach(([id], i) => {
+    const look = brushMeshes[id];
+    const handle = new THREE.Mesh(handleGeo, track(new THREE.MeshStandardMaterial({ color: look.handle, roughness: 0.4 })));
+    const ferrule = new THREE.Mesh(look.ferrule, ferruleMat);
+    ferrule.position.y = 0.42;
+    const tip = new THREE.Mesh(look.tip, tipMat);
+    tip.position.y = 0.56;
+    // Laid down with the tip to the right (and a flat brush's bristles flat).
+    const lying = new THREE.Group();
+    lying.rotation.set(0, Math.PI / 2, -Math.PI / 2, "ZYX");
+    lying.add(handle, ferrule, tip);
     const brush = new THREE.Group();
-    const handle = new THREE.Mesh(track(new THREE.CylinderGeometry(0.03, 0.035, 0.7, 10)), track(new THREE.MeshStandardMaterial({ color: 0xb03a2e, roughness: 0.4 })));
-    const ferrule = new THREE.Mesh(track(new THREE.CylinderGeometry(0.04, 0.035, 0.12, 10)), track(new THREE.MeshStandardMaterial({ color: 0xc9ccd2, metalness: 0.6, roughness: 0.3 })));
-    ferrule.position.y = 0.41;
-    const tip = new THREE.Mesh(track(new THREE.ConeGeometry(0.045, 0.16, 10)), track(new THREE.MeshStandardMaterial({ color: 0x3a2a1c, roughness: 0.9 })));
-    tip.position.y = 0.55;
-    brush.add(handle, ferrule, tip);
-    brush.rotation.set(0, 0.3, Math.PI / 2);
-    brush.position.set(POST_X - 0.75, TRAY_Y + 0.07, TRAY_Z + 0.12);
-    for (const part of [handle, ferrule, tip]) part.castShadow = true;
-    root.add(brush);
-  }
+    brush.add(lying);
+    addItem(brush, { tool: "brush", mode: "paint", brush: id, h: 0.08 }, 0.75 + i * 1.25, i ? 0.1 : -0.08, i ? -0.1 : 0.12);
+    for (const part of [handle, ferrule, tip]) {
+      part.castShadow = true;
+      part.userData = brush.userData;
+    }
+  });
 
   const pickables = [sides.chalk.surface, sides.paint.surface];
   for (const item of items) item.traverse((o) => o.isMesh && pickables.push(o));
@@ -859,13 +990,19 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
   const settingsPanel = bar.querySelector(".draw-settings");
   const sliders = settingsPanel.querySelectorAll("input");
   const unframe = [asciiFrame(bar), asciiFrame(settingsPanel)];
+  // The [buttons] wobble gently on hover rather than lighting up (drawing.css).
+  const wobbles = [...bar.querySelectorAll(".draw-btn")].map((btn) => shakeOnHover(btn, btn, { strength: 0.5, speed: 0.55 }));
   const sliderBars = [...sliders].map((input) => asciiRange(input));
 
   function syncSliders() {
     for (const input of sliders) {
-      const value = state.paint[input.dataset.setting];
-      input.value = Math.round(value * 100);
-      settingsPanel.querySelector(`output[data-for="${input.dataset.setting}"]`).textContent = `${Math.round(value * 100)}%`;
+      const key = input.dataset.setting;
+      // Paint settings are 0–1 shown as %; the flat brush's are stored as shown.
+      const raw = "raw" in input.dataset;
+      const shown = Math.round(raw ? state.paint[key] : state.paint[key] * 100);
+      const unit = raw ? FLAT_SETTINGS.find(([k]) => k === key)[5] : "%";
+      input.value = shown;
+      settingsPanel.querySelector(`output[data-for="${key}"]`).textContent = `${shown}${unit}`;
     }
     for (const bar of sliderBars) bar.update();
   }
@@ -873,15 +1010,18 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
   function showSettings(show) {
     settingsPanel.hidden = !show;
     settingsBtn.setAttribute("aria-expanded", String(show));
-    if (show) popIn(settingsPanel, { y: -6, scale: 0.96, transformOrigin: "100% 0%" });
+    if (!show) return;
+    showPicker(false);
+    popIn(settingsPanel, { y: -6, scale: 0.96, transformOrigin: "100% 0%" });
   }
 
   settingsPanel.addEventListener("input", (e) => {
     const key = e.target.dataset.setting;
     if (!key) return;
-    state.paint[key] = Number(e.target.value) / 100;
+    state.paint[key] = Number(e.target.value) / ("raw" in e.target.dataset ? 1 : 100);
     syncSliders();
     savePaintSettings();
+    drawPreview(); // the brush preview shows the new angle and length
   });
 
   function savePaintSettings() {
@@ -890,15 +1030,166 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     } catch {}
   }
 
-  // Each colour is a cell of that colour, bracketed when picked: [#]
-  function renderSwatches() {
-    swatchesEl.innerHTML = PALETTES[state.mode]
+  // ----- Colour picker: an ASCII box of hue / saturation / lightness bars -----
+  const picker = bar.querySelector(".draw-picker");
+  const hslInputs = picker.querySelectorAll("input[data-hsl]");
+  const hexInput = picker.querySelector(".draw-hex input");
+  const preview = picker.querySelector(".draw-preview");
+  const hsl = { h: 0, s: 60, l: 50 };
+  let pickedHex = hslToHex(hsl); // exactly as typed, when it was typed
+  const pick = (hex) => {
+    pickedHex = hex;
+    Object.assign(hsl, hexToHsl(hex));
+  };
+  const hslBars = [...hslInputs].map((input) => asciiRange(input, { marker: "|" }));
+  unframe.push(asciiFrame(picker));
+  const customBtn = () => swatchesEl.querySelector(".draw-custom");
+  const recentEl = picker.querySelector(".draw-recent");
+  const recentRule = picker.querySelector(".ascii-rule");
+  const recent = loadRecent();
+
+  // Recent colours along the bottom of the picker, bracketed when in use.
+  function renderRecent() {
+    const list = recent[state.mode];
+    recentEl.hidden = recentRule.hidden = !list.length; // nothing shown until there are some
+    recentEl.innerHTML = list
       .map(
-        ([name, color]) => `<label class="draw-pick draw-swatch" title="${name}">
-          <input type="radio" name="draw-color" value="${color}" aria-label="${name}"><span><i style="--c:${color}"></i></span>
-        </label>`
+        (c) => `<button class="draw-pick" type="button" data-color="${c}" aria-label="${c}" title="${c}"><span><i style="--c:${c}"></i></span></button>`
       )
       .join("");
+    syncRecent();
+  }
+
+  function syncRecent() {
+    for (const btn of recentEl.querySelectorAll("[data-color]")) {
+      btn.setAttribute("aria-pressed", String(!state.erasing && btn.dataset.color === state.color[state.mode]));
+    }
+  }
+
+  /** Keep a picker colour that's been drawn with at the front of the recent list. */
+  function remember(hex) {
+    const list = recent[state.mode];
+    if (list[0] === hex) return;
+    recent[state.mode] = [hex, ...list.filter((c) => c !== hex)].slice(0, MAX_RECENT);
+    try {
+      localStorage.setItem(RECENT_KEY, JSON.stringify(recent));
+    } catch {}
+    renderRecent();
+  }
+  const isCustom = () => !PALETTES[state.mode].some(([, color]) => color === state.color[state.mode]);
+
+  // What the picker shows. Usually just `hsl`, but when a colour is chosen
+  // from elsewhere (a swatch, a recent colour, the tray) it glides there.
+  const shown = { ...hsl };
+
+  /** Show the picker at `shown`; `hex` is the exact colour once it's arrived. */
+  function paintPicker(hex) {
+    const view = { h: ((Math.round(shown.h) % 360) + 360) % 360, s: Math.round(shown.s), l: Math.round(shown.l) };
+    hex ??= hslToHex(view);
+    for (const input of hslInputs) {
+      const key = input.dataset.hsl;
+      input.value = view[key];
+      picker.querySelector(`output[data-for="${key}"]`).textContent = key === "h" ? `${view.h}°` : `${view[key]}%`;
+    }
+    picker.style.setProperty("--h", view.h);
+    picker.style.setProperty("--s", `${view.s}%`);
+    picker.style.setProperty("--l", `${view.l}%`);
+    preview.style.setProperty("--c", hex);
+    if (document.activeElement !== hexInput) hexInput.value = hex.slice(1);
+    for (const slider of hslBars) slider.update();
+  }
+
+  /** Show the current colour straight away (stopping any glide). */
+  function syncPicker() {
+    gsap.killTweensOf(shown);
+    Object.assign(shown, hsl);
+    paintPicker(pickedHex);
+  }
+
+  /** Pick `hex` and slide the picker's bars, numbers and swatch over to it. */
+  function glideTo(hex) {
+    pick(hex);
+    if (picker.hidden || reduceMotion()) return syncPicker();
+    gsap.killTweensOf(shown);
+    let h = hsl.h; // the short way round the hue circle
+    while (h - shown.h > 180) h -= 360;
+    while (shown.h - h > 180) h += 360;
+    gsap.to(shown, {
+      h,
+      s: hsl.s,
+      l: hsl.l,
+      duration: 0.5,
+      ease: "power3.out",
+      onUpdate: () => paintPicker(),
+      onComplete: syncPicker,
+    });
+  }
+
+  function showPicker(show) {
+    picker.hidden = !show;
+    customBtn()?.setAttribute("aria-expanded", String(show));
+    if (!show) return;
+    showSettings(false);
+    pick(state.color[state.mode]);
+    syncPicker();
+    renderRecent();
+    // Under the + button, kept within the toolbar.
+    const btn = customBtn();
+    const left = btn.offsetLeft + btn.offsetWidth / 2 - picker.offsetWidth / 2;
+    picker.style.left = `${Math.max(0, Math.min(left, bar.clientWidth - picker.offsetWidth))}px`;
+    popIn(picker, { y: -6, scale: 0.96, transformOrigin: "50% 0%" });
+  }
+
+  /** Paint with a colour made in the picker. */
+  function useCustom(hex) {
+    state.custom[state.mode] = state.color[state.mode] = hex;
+    state.erasing = false;
+    renderCustom();
+    syncUI();
+  }
+
+  picker.addEventListener("input", (e) => {
+    const key = e.target.dataset.hsl;
+    if (key) {
+      hsl[key] = Number(e.target.value);
+      pickedHex = hslToHex(hsl);
+    } else if (e.target === hexInput) {
+      const hex = parseHex(hexInput.value);
+      if (!hex) return; // still typing
+      pick(hex);
+    }
+    syncPicker();
+    useCustom(pickedHex);
+  });
+  hexInput.addEventListener("blur", syncPicker); // tidy up whatever was typed
+  recentEl.addEventListener("click", (e) => {
+    const color = e.target.closest("[data-color]")?.dataset.color;
+    if (!color) return;
+    glideTo(color);
+    useCustom(color);
+  });
+  hexInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") hexInput.blur();
+  });
+
+  // Each colour is a cell of that colour, bracketed when picked: [#]. Then a
+  // + that opens the picker (showing the last colour made in it, if any).
+  function renderSwatches() {
+    swatchesEl.innerHTML =
+      PALETTES[state.mode]
+        .map(
+          ([name, color]) => `<label class="draw-pick draw-swatch" title="${name}">
+          <input type="radio" name="draw-color" value="${color}" aria-label="${name}"><span><i style="--c:${color}"></i></span>
+        </label>`
+        )
+        .join("") +
+      `<button class="draw-pick draw-custom" type="button" data-action="picker" aria-controls="draw-picker" aria-expanded="${!picker.hidden}" aria-pressed="false" aria-label="Pick any colour" title="Pick any colour"><span></span></button>`;
+    renderCustom();
+  }
+
+  function renderCustom() {
+    const custom = state.custom[state.mode];
+    customBtn().firstChild.innerHTML = custom ? `<i style="--c:${custom}"></i>+` : "+";
   }
 
   function syncUI() {
@@ -909,15 +1200,26 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
       if (input.name === "draw-color") input.checked = !state.erasing && input.value === state.color[state.mode];
     }
     eraseBtn.setAttribute("aria-pressed", String(state.erasing));
+    customBtn().setAttribute("aria-pressed", String(!state.erasing && isCustom()));
+    syncRecent();
+    if (!picker.hidden && pickedHex !== state.color[state.mode]) {
+      glideTo(state.color[state.mode]); // a colour picked elsewhere
+    }
     // Brush shapes and paint settings only apply to the canvas.
     settingsBtn.hidden = state.mode !== "paint";
     brushesEl.hidden = state.mode !== "paint";
+    settingsPanel.querySelector(".draw-flat-settings").hidden = state.paint.brush !== "flat";
     if (state.mode !== "paint") showSettings(false);
-    // Lift the matching item on the tray.
+    drawPreview();
+    // Lift the matching items on the tray, and load the brushes with the paint.
+    tipMat.color.set(state.color.paint);
     for (const item of items) {
-      const { tool, mode, color, restY } = item.userData;
+      const { tool, mode, color, brush, restY } = item.userData;
       const selected =
-        mode === state.mode && (tool === "eraser" ? state.erasing : !state.erasing && color === state.color[state.mode]);
+        mode === state.mode &&
+        (tool === "eraser"
+          ? state.erasing
+          : !state.erasing && (tool === "brush" ? brush === state.paint.brush : color === state.color[state.mode]));
       const y = restY + (selected ? 0.1 : 0);
       if (reduceMotion()) item.position.y = y;
       else gsap.to(item.position, { y, duration: 0.35, ease: "back.out(2)", overwrite: true });
@@ -927,7 +1229,7 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
 
   bar.addEventListener("change", (e) => {
     const { name, value } = e.target;
-    if (e.target.dataset.setting) return; // paint sliders are handled above
+    if (e.target.dataset.setting || e.target.closest(".draw-picker")) return; // handled above
     if (name === "draw-mode") setMode(value);
     if (name === "draw-size") state.size = Number(value);
     if (name === "draw-brush") {
@@ -949,17 +1251,28 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
       syncUI();
     }
     if (action === "settings") showSettings(settingsPanel.hidden);
+    if (action === "picker") {
+      const custom = state.custom[state.mode];
+      if (custom && picker.hidden) useCustom(custom);
+      showPicker(picker.hidden);
+    }
     if (action === "undo") undo();
     if (action === "clear") clear();
     if (action === "save") save();
   });
 
   function onKey(e) {
+    if (e.key === "Escape" && !picker.hidden) {
+      showPicker(false);
+      customBtn().focus();
+      return;
+    }
     if (e.key === "Escape" && !settingsPanel.hidden) {
       showSettings(false);
       settingsBtn.focus();
       return;
     }
+    if (e.target === hexInput) return; // typing a colour
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "z") {
       e.preventDefault();
       undo();
@@ -976,7 +1289,9 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     state.mode = mode;
     state.erasing = false;
     endStroke();
+    showPicker(false);
     renderSwatches();
+    brushPreview.visible = false; // until the pointer moves over the new side
     spin += Math.PI; // always over the top in the same direction
     gsap.killTweensOf(board.rotation);
     if (reduceMotion()) {
@@ -1087,16 +1402,18 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
   // over is picked up and smeared along (see soak), so colours swirl together
   // along the stroke. Chunkier paint means more varied shades, higher ridges
   // and more ragged edges; thicker paint stands higher overall.
-  function makeBristles(w, loaded, { thickness, chunk, brush }) {
+  function makeBristles(w, loaded, settings) {
+    const { thickness, chunk, brush } = settings;
     const flat = brush === "flat";
-    const count = Math.round(THREE.MathUtils.clamp(w / (flat ? 1.8 : 2.4), 8, flat ? 36 : 28));
-    const ex = Math.cos(FLAT_ANGLE);
-    const ey = Math.sin(FLAT_ANGLE);
+    const length = flat ? flatLength(settings) : 1; // a longer edge needs more bristles
+    const count = Math.round(THREE.MathUtils.clamp((w * length) / (flat ? 1.8 : 2.4), 8, flat ? 36 * Math.max(1, length) : 28));
+    const ex = Math.cos(flatAngle(settings));
+    const ey = Math.sin(flatAngle(settings));
     return Array.from({ length: count }, () => {
       let dx, dy;
       if (flat) {
         // Along the edge, with a little scatter either side of it.
-        const along = (rand() - 0.5) * w * (1 + 0.1 * chunk);
+        const along = (rand() - 0.5) * w * length * (1 + 0.1 * chunk);
         const across = (rand() - 0.5) * w * (0.06 + 0.1 * chunk);
         dx = ex * along - ey * across;
         dy = ey * along + ex * across;
@@ -1144,8 +1461,8 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
       curve(c, from, ctrl, to);
       return;
     }
-    const hx = (Math.cos(FLAT_ANGLE) * w * scale) / 2;
-    const hy = (Math.sin(FLAT_ANGLE) * w * scale) / 2;
+    const hx = (Math.cos(stroke.flatAngle) * w * stroke.flatLength * scale) / 2;
+    const hy = (Math.sin(stroke.flatAngle) * w * stroke.flatLength * scale) / 2;
     const points = [];
     for (let i = 0; i <= 6; i++) {
       const t = i / 6;
@@ -1278,6 +1595,7 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
   }
 
   function startStroke(side, p) {
+    if (!state.erasing && isCustom()) remember(state.color[state.mode]);
     const saved = pushUndo(side);
     const painting = state.mode === "paint" && !state.erasing;
     if (painting) side.layerCtx.clearRect(0, 0, INK_W, INK_H);
@@ -1296,6 +1614,8 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
       // the colour right underneath shows through.
       chunk,
       shape: state.paint.brush,
+      flatAngle: flatAngle(state.paint),
+      flatLength: flatLength(state.paint),
       pickup: 0.32 * mix,
       recover: 0.05 - 0.035 * mix,
       inPlace: 0.4 * mix,
@@ -1358,12 +1678,13 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     });
 
   // ----- Picking tools from the tray -----
-  function pickItem({ tool, mode, color }) {
+  function pickItem({ tool, mode, color, brush }) {
     setMode(mode);
-    if (tool === "eraser") state.erasing = true;
-    else {
-      state.erasing = false;
-      state.color[mode] = color;
+    state.erasing = tool === "eraser";
+    if (tool === "color") state.color[mode] = color;
+    if (tool === "brush") {
+      state.paint.brush = brush;
+      savePaintSettings();
     }
     syncUI();
   }
@@ -1414,6 +1735,59 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     dirty = true;
   }
 
+  // ----- Brush preview: the brush's footprint, in its colour, under the pointer -----
+  // Drawn into a small texture on a plane that lies on the board, so it takes
+  // the board's tilt and scale. It replaces the system cursor over the board.
+  const PREVIEW_PX = 256;
+  const PREVIEW_MARGIN = 1.25; // room around the brush for its outline
+  const previewCanvas = makeCanvas(PREVIEW_PX, PREVIEW_PX);
+  const previewCtx = previewCanvas.getContext("2d");
+  const previewTex = track(new THREE.CanvasTexture(previewCanvas));
+  previewTex.colorSpace = THREE.SRGBColorSpace;
+  const brushPreview = new THREE.Mesh(
+    track(new THREE.PlaneGeometry(1, 1)),
+    track(new THREE.MeshBasicMaterial({ map: previewTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }))
+  );
+  brushPreview.visible = false;
+  brushPreview.renderOrder = 2;
+
+  /** Redraw the preview for the current tool, size and colour. */
+  function drawPreview() {
+    const w = width(); // ink px
+    const flat = !state.erasing && state.mode === "paint" && state.paint.brush === "flat";
+    const length = flat ? flatLength(state.paint) : 1;
+    const span = w * PREVIEW_MARGIN * Math.max(1, length); // ink px the preview covers
+    const c = previewCtx;
+    c.clearRect(0, 0, PREVIEW_PX, PREVIEW_PX);
+    c.save();
+    c.translate(PREVIEW_PX / 2, PREVIEW_PX / 2);
+    c.scale(PREVIEW_PX / span, PREVIEW_PX / span);
+    c.beginPath();
+    if (flat) {
+      // The flat brush's edge, at the angle it's held.
+      c.rotate(flatAngle(state.paint));
+      const thick = Math.max(w * 0.12, 5);
+      c.rect(-w * length * 0.45, -thick / 2, w * length * 0.9, thick);
+    } else {
+      c.arc(0, 0, w / 2, 0, Math.PI * 2);
+    }
+    if (!state.erasing) {
+      c.fillStyle = state.color[state.mode];
+      c.globalAlpha = 0.9;
+      c.fill();
+      c.globalAlpha = 1;
+    }
+    // An outline that shows on both the light canvas and the dark slate.
+    c.lineWidth = Math.max(2.5, w * 0.04);
+    c.strokeStyle = state.mode === "paint" ? "rgba(29, 27, 24, 0.7)" : "rgba(243, 240, 232, 0.85)";
+    if (state.erasing) c.setLineDash([w * 0.08, w * 0.06]); // dashed: it takes away
+    c.stroke();
+    c.restore();
+    previewTex.needsUpdate = true;
+    brushPreview.scale.setScalar((span * SURF_W) / INK_W);
+    dirty = true;
+  }
+
   renderSwatches();
   syncUI();
   syncSliders();
@@ -1423,9 +1797,36 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
 
   const drawRay = new THREE.Raycaster();
 
+  /** The side being drawn on, if `hit` is on it (and it isn't mid-flip). */
+  function activeSide(hit) {
+    const side = hit?.uv && sides[hit.object.userData.side];
+    return side && side.mode === state.mode && !flipping ? side : null;
+  }
+
   return {
     cursor: "crosshair",
     pickables,
+
+    // Tray items are clicked; over the board the brush preview is the cursor.
+    cursorFor(hit) {
+      if (hit.object.userData.tool) return "pointer";
+      return activeSide(hit) ? "none" : "crosshair";
+    },
+
+    hover(hit) {
+      const side = activeSide(hit);
+      if (!side) {
+        if (brushPreview.visible) {
+          brushPreview.visible = false;
+          dirty = true;
+        }
+        return;
+      }
+      if (brushPreview.parent !== side.surface) side.surface.add(brushPreview);
+      brushPreview.position.set((hit.uv.x - 0.5) * SURF_W, (hit.uv.y - 0.5) * SURF_H, 0.004);
+      brushPreview.visible = true;
+      dirty = true;
+    },
 
     grab(hit) {
       const { userData } = hit.object;
@@ -1460,7 +1861,8 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
       stopResize();
       barSize.disconnect();
       for (const remove of unframe) remove();
-      for (const slider of sliderBars) slider.dispose();
+      for (const wobble of wobbles) wobble.dispose();
+      for (const slider of [...sliderBars, ...hslBars]) slider.dispose();
       gsap.killTweensOf([bar, board.rotation, ...items.map((item) => item.position)]);
       bar.remove();
       scene.remove(root);

@@ -1,6 +1,6 @@
 /* ---------- Drawing board toolbar ---------- */
 /* An ASCII box of text controls (see toolbarHTML in drawing.js):
-     ( ) Chalkboard (*) Canvas   [#] # #   [round] flat   . [o] O
+     ( ) Chalkboard (*) Canvas   [#] # # +   [Round] Flat   . [o] O
      [erase] [undo] [save] [clear all] [opts]                          */
 
 /* Centred under the header; script sets `top` (under the header, or just above
@@ -36,6 +36,27 @@
 
 .draw-actions {
   gap: 1ch;
+}
+
+/* No highlight on hover: they wobble instead (drawing.js). Erase while it's on
+   and opts while its panel is open stay lit, to show they're active. Keyboard
+   focus underlines them. */
+.draw-btn.ascii-btn:hover:not([aria-pressed="true"], [aria-expanded="true"]),
+.draw-btn.ascii-btn:focus-visible:not([aria-pressed="true"], [aria-expanded="true"]) {
+  background: none;
+  color: var(--fg);
+}
+
+.draw-btn.ascii-btn:hover:not([aria-pressed="true"], [aria-expanded="true"])::before,
+.draw-btn.ascii-btn:hover:not([aria-pressed="true"], [aria-expanded="true"])::after,
+.draw-btn.ascii-btn:focus-visible:not([aria-pressed="true"], [aria-expanded="true"])::before,
+.draw-btn.ascii-btn:focus-visible:not([aria-pressed="true"], [aria-expanded="true"])::after {
+  color: var(--muted);
+}
+
+.draw-btn.ascii-btn:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* Picks (colours, brushes, sizes): bracketed when chosen, [o], with the
@@ -88,12 +109,157 @@
 }
 
 /* A colour: one character-sized cell of it. */
-.draw-swatch i {
+.draw-swatch i,
+.draw-custom i,
+.draw-recent i {
   display: inline-block;
   width: 1.4ch;
   height: 12px;
   background: var(--c);
   box-shadow: inset 0 0 0 1px rgb(var(--shadow-rgb) / 0.25);
+}
+
+/* The + after the colours opens the picker; bracketed while its colour is in
+   use. Recent colours in the picker work the same way. */
+.draw-custom,
+.draw-recent button {
+  padding: 0 0 0 0.5ch;
+  border: 0;
+  background: none;
+  font: inherit;
+}
+
+.draw-custom span {
+  gap: 0.5ch;
+}
+
+.draw-custom[aria-pressed="true"] span,
+.draw-custom[aria-expanded="true"] span,
+.draw-recent button[aria-pressed="true"] span {
+  color: var(--fg);
+  font-weight: 700;
+}
+
+.draw-custom[aria-pressed="true"] span::before,
+.draw-custom[aria-pressed="true"] span::after,
+.draw-recent button[aria-pressed="true"] span::before,
+.draw-recent button[aria-pressed="true"] span::after {
+  color: var(--fg);
+}
+
+.draw-custom:focus-visible,
+.draw-recent button:focus-visible {
+  outline: none;
+}
+
+.draw-custom:focus-visible span,
+.draw-recent button:focus-visible span {
+  outline: 1px solid var(--fg);
+  outline-offset: 1px;
+}
+
+/* Colour picker: an ASCII box under the +, with a swatch, a hex field and
+   hue / saturation / lightness bars drawn in their own colours. */
+.draw-picker {
+  --h: 0;
+  --s: 60%;
+  --l: 50%;
+  position: absolute;
+  top: calc(100% + 8px);
+  width: 32ch;
+  padding: 22px 2ch 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.draw-picker[hidden] {
+  display: none;
+}
+
+.draw-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2ch;
+}
+
+.draw-preview {
+  width: 9ch;
+  height: 26px;
+  background: var(--c);
+  box-shadow: inset 0 0 0 1px rgb(var(--shadow-rgb) / 0.25);
+}
+
+.draw-hex {
+  color: var(--muted);
+  white-space: pre;
+}
+
+.draw-hex span {
+  color: var(--fg);
+}
+
+.draw-hex input {
+  width: 6ch;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-transform: lowercase;
+  outline: none;
+}
+
+.draw-hex span:focus-within {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+.draw-picker .ascii-rule {
+  margin-top: 2px;
+  line-height: 16px;
+}
+
+.draw-recent {
+  display: flex;
+  flex-wrap: wrap;
+  min-height: 22px;
+  margin-top: -6px;
+}
+
+.draw-recent button {
+  padding: 0;
+}
+
+.draw-recent[hidden],
+.draw-picker .ascii-rule[hidden] {
+  display: none;
+}
+
+.draw-picker .ascii-bar {
+  width: fit-content;
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.draw-picker .ascii-mark {
+  color: var(--fg);
+  font-weight: 700;
+}
+
+.draw-h .ascii-bar {
+  background-image: linear-gradient(to right,
+    hsl(0 85% 55%), hsl(60 85% 55%), hsl(120 85% 55%), hsl(180 85% 55%),
+    hsl(240 85% 55%), hsl(300 85% 55%), hsl(360 85% 55%));
+}
+
+.draw-s .ascii-bar {
+  background-image: linear-gradient(to right, hsl(var(--h) 0% var(--l)), hsl(var(--h) 100% var(--l)));
+}
+
+.draw-l .ascii-bar {
+  background-image: linear-gradient(to right, #000, hsl(var(--h) var(--s) 50%), #fff);
 }
 
 /* Paint settings: an ASCII box dropping down from the toolbar's right end. */
@@ -109,6 +275,21 @@
 
 .draw-settings[hidden] {
   display: none;
+}
+
+/* Angle and length, only while the flat brush is picked. */
+.draw-flat-settings {
+  display: grid;
+  gap: 10px;
+}
+
+.draw-flat-settings[hidden] {
+  display: none;
+}
+
+.draw-flat-settings .ascii-rule {
+  margin-top: 2px;
+  line-height: 16px;
 }
 
 .draw-slider {

@@ -99,6 +99,7 @@ body {
 #stage.grabbing { cursor: grabbing; }
 #stage.point { cursor: pointer; }
 #stage.draw { cursor: crosshair; }
+#stage.nocursor { cursor: none; } /* the toy draws its own (the brush preview) */
 
 /* Overlays let pointer events fall through to the canvas except on links/buttons. */
 .overlay {

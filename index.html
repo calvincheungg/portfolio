@@ -48,15 +48,17 @@
     <header class="overlay top">
       <div class="work">
         <button class="text-btn ascii-btn" id="work-toggle" type="button" aria-expanded="false" aria-controls="work-menu">Work</button>
-        <nav class="work-menu card" id="work-menu" aria-label="Work" data-ascii-title="work">
-          <a class="work-item ascii-row" href="calvin-cheung-resume.pdf" id="resume-link" data-track="/resume" target="_blank" rel="noopener">Resume</a>
-          <p class="work-heading ascii-rule">Projects</p>
+        <nav class="work-menu card" id="work-menu" aria-label="Work" data-ascii-title="Work">
+          <a class="work-item ascii-row" href="calvin-cheung-resume.pdf" id="resume-link" data-track="/resume" target="_blank" rel="noopener"><span class="shake" data-flap>Resume</span></a>
+          <p class="work-heading ascii-rule" data-flap>Projects</p>
           <ul>
-            <li><a class="work-item ascii-row" href="https://beatmap-rho.vercel.app/" data-track="/projects/beatmap" target="_blank" rel="noopener">BeatMap<span class="arrow" aria-hidden="true">-&gt;</span></a></li>
+            <li><a class="work-item ascii-row" href="https://beatmap-rho.vercel.app/" data-track="/projects/beatmap" target="_blank" rel="noopener"><span data-flap>BeatMap</span><span class="arrow" aria-hidden="true">-&gt;</span></a>
+              <p class="work-desc">A live music map of Toronto: find shows happening near you.</p>
+            </li>
           </ul>
         </nav>
       </div>
-      <span class="role">Full-stack Software Engineer</span>
+      <span class="role">Full-Stack Software Engineer</span>
       <div class="contact">
         <button class="text-btn ascii-btn" id="contact-toggle" type="button" aria-expanded="false" aria-controls="contact-ladder">Contact</button>
         <div class="ladder" id="contact-ladder">
@@ -75,7 +77,7 @@
       <button class="text-btn ascii-btn" id="about-toggle" type="button" aria-haspopup="dialog" aria-controls="about">About</button>
       <div class="settings">
         <button class="text-btn ascii-btn" id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings-panel">Settings</button>
-        <div class="settings-panel card" id="settings-panel" role="group" aria-label="Settings" data-ascii-title="settings">
+        <div class="settings-panel card" id="settings-panel" role="group" aria-label="Settings" data-ascii-title="Settings">
           <fieldset class="setting">
             <legend>Theme</legend>
             <div class="segmented">
@@ -88,6 +90,15 @@
             <div class="segmented">
               <label><input type="radio" name="quality" value="low"><span>Low</span></label>
               <label><input type="radio" name="quality" value="high"><span>High</span></label>
+            </div>
+          </fieldset>
+          <fieldset class="setting">
+            <legend>Borders</legend>
+            <div class="segmented">
+              <label><input type="radio" name="frame" value="fleur"><span>Fleur</span></label>
+              <label><input type="radio" name="frame" value="plain"><span>Plain</span></label>
+              <label><input type="radio" name="frame" value="round"><span>Round</span></label>
+              <label><input type="radio" name="frame" value="double"><span>Double</span></label>
             </div>
           </fieldset>
           <label class="setting ascii-check-row">
@@ -107,13 +118,14 @@
     <div class="np-head">
       <span class="np-disc" aria-hidden="true"></span>
       <span class="np-text">
-        <span class="np-label" id="now-playing-label">Now playing</span>
+        <span class="np-label" id="now-playing-label">Now Playing</span>
         <span class="np-title" id="now-playing-title"></span>
       </span>
       <div class="np-controls">
         <button class="np-btn ascii-btn" id="now-playing-prev" type="button" aria-label="Previous track">|&lt;</button>
         <button class="np-btn ascii-btn np-toggle" id="now-playing-toggle" type="button" aria-label="Pause"><span class="i-pause" aria-hidden="true">||</span><span class="i-play" aria-hidden="true">&gt;</span></button>
         <button class="np-btn ascii-btn" id="now-playing-next" type="button" aria-label="Next track">&gt;|</button>
+        <button class="np-btn ascii-btn" id="now-playing-shuffle" type="button" aria-pressed="false" aria-label="Shuffle" title="Shuffle">shuf</button>
       </div>
       <button class="np-btn ascii-btn" id="now-playing-list" type="button" aria-expanded="false" aria-controls="track-list" aria-label="Show songs">list</button>
       <button class="np-btn ascii-btn np-minimize" id="now-playing-minimize" type="button" aria-expanded="true" aria-controls="now-playing-embed" aria-label="Minimize player"><span class="i-collapse" aria-hidden="true">v</span><span class="i-expand" aria-hidden="true">^</span></button>
@@ -140,24 +152,34 @@
   </section>
 
   <dialog class="modal about" id="about" aria-labelledby="about-title">
-    <div class="about-card card" data-ascii-title="about">
+    <div class="about-card card">
       <button class="about-close text-btn ascii-btn small" id="about-close" type="button">Close</button>
       <h2 class="visually-hidden" id="about-title">About</h2>
-      <p>
-        Calvin is a full-stack software engineer who loves building and leading projects
-        end to end, from first idea to launch. He's drawn to complex problems, is always
-        exploring what's newly possible with AI, and does his best work alongside other
+      <pre class="about-fleur" aria-hidden="true">    ^
+ _(   )_
+( `\ /' )
+  _)^(_
+    V</pre>
+      <p data-flap>
+        Hey there!  I'm Calvin, a full-stack software engineer who loves building and leading projects
+        end to end, from first idea to launch. I'm drawn to complex problems and finding a solution, always
+        exploring what's newly possible with AI, and doing my best work alongside other
         people, where ideas get sharper because they're shared.
       </p>
-      <p>
+      <p data-flap>
         Outside of work, he plays tennis, draws, listens to a lot of music, and is always
         picking up a new hobby.
       </p>
+      <pre class="about-fleur flipped" aria-hidden="true">    ^
+ _(   )_
+( `\ /' )
+  _)^(_
+    V</pre>
     </div>
   </dialog>
 
   <dialog class="modal resume" id="resume" aria-labelledby="resume-title">
-    <div class="resume-sheet card" data-ascii-title="resume">
+    <div class="resume-sheet card">
       <div class="resume-bar">
         <h2 class="visually-hidden" id="resume-title">Resume</h2>
         <div class="resume-actions">

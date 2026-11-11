@@ -1,4 +1,4 @@
-// Visitor settings (theme, graphics quality, reduce motion), remembered in
+// Visitor settings (theme, graphics quality, menu borders, reduce motion), remembered in
 // this browser. Anything not chosen yet follows the device.
 
 const KEY = "portfolio-settings";
@@ -19,6 +19,7 @@ const state = {
   // "light" | "dark" once picked; until then "system" (follows the device).
   theme: saved.theme ?? "system",
   quality: saved.quality ?? (isTouch ? "low" : "high"), // "low" | "high"
+  frame: saved.frame ?? "fleur", // menu borders: a key of FRAME_STYLES (src/ui/ascii.js)
   reduceMotion: saved.reduceMotion ?? systemReducedMotion.matches,
 };
 
@@ -37,6 +38,7 @@ export function setSetting(key, value) {
     // not saved, but still applies for this visit
   }
   if (key === "theme") applyTheme();
+  if (key === "reduceMotion") applyMotion();
   notify(key);
 }
 
@@ -56,6 +58,11 @@ function applyTheme() {
   document.documentElement.dataset.theme = theme();
 }
 
+// CSS animations check this too: <html data-reduce-motion>.
+function applyMotion() {
+  document.documentElement.toggleAttribute("data-reduce-motion", state.reduceMotion);
+}
+
 systemDark.addEventListener("change", () => {
   if (state.theme !== "system") return;
   applyTheme();
@@ -64,7 +71,9 @@ systemDark.addEventListener("change", () => {
 systemReducedMotion.addEventListener("change", () => {
   if ("reduceMotion" in saved) return;
   state.reduceMotion = systemReducedMotion.matches;
+  applyMotion();
   notify("reduceMotion");
 });
 
 applyTheme();
+applyMotion();

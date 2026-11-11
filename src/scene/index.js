@@ -14,6 +14,9 @@ import { fonts } from "../lib/fonts.js";
 //   dispose()
 //   doubleClick(hit), cursor ("pointer" for clicked rather than dragged toys,
 //                  "crosshair" for drawing) optional
+//   cursorFor(hit) the cursor for a particular hit ("none" hides it) optional
+//   hover(hit)     every pointer move, with what's under it (or null) optional
+//   wheel(hit, e)  scroll-wheel moves; return true to use them (and stop the page scrolling) optional
 // Toys are downloaded the first time they're picked.
 // The first is the one the page opens with.
 const TOYS = [
@@ -38,7 +41,7 @@ async function loadToy(id) {
   toy?.dispose();
   toyId = id;
   toy = create(ctx);
-  canvas.classList.remove("grab", "point", "draw");
+  canvas.classList.remove("grab", "point", "draw", "nocursor");
   requestRender();
 }
 

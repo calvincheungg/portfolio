@@ -1,5 +1,6 @@
 import { gsap } from "gsap";
 import { createDialog } from "./dialog.js";
+import { flapIn } from "./splitflap.js";
 
 // About popup: drops in like a block landing; on close it hangs from a corner,
 // falls to the bottom of the screen, topples flat and fades.
@@ -10,6 +11,7 @@ const card = dialog.querySelector(".about-card");
 const about = createDialog(dialog, {
   show() {
     gsap.killTweensOf([dialog, card]);
+    flapIn(card, { delay: 0.15, gap: 0.25 }); // the text clicks over like a departures board
     gsap.fromTo(dialog, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power1.out" });
     // Falls, tilts, then bounces level.
     gsap.fromTo(

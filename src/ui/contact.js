@@ -72,3 +72,18 @@ email.addEventListener("click", async (e) => {
     announce.textContent = "";
   }, 1600);
 });
+
+// Rungs sway when the pointer brushes past, tipping the way it was moving and
+// wobbling back level.
+for (const rung of rungs) {
+  rung.addEventListener("pointerenter", (e) => {
+    if (reduceMotion() || !unroll.progress()) return;
+    const box = rung.getBoundingClientRect();
+    const dir = e.movementX || e.clientX - (box.left + box.width / 2) || 1;
+    gsap.fromTo(
+      rung,
+      { rotation: Math.sign(dir) * 3.5 }, // (pivots on the rung's top, set by the unroll)
+      { rotation: 0, duration: 1.3, ease: "elastic.out(1, 0.25)", overwrite: "auto" }
+    );
+  });
+}

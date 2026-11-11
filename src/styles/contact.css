@@ -81,10 +81,11 @@
   content: " ]";
 }
 
+/* No highlight on hover: the rung sways (contact.js) and its label underlines. */
 .overlay .rung a:hover .rung-label,
 .overlay .rung a:focus-visible .rung-label {
-  background: var(--fg);
-  color: var(--bg);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .overlay .rung a:focus-visible {
