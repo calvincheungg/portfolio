@@ -47,8 +47,7 @@
   position: relative; /* sits in front of the ropes */
 }
 
-.overlay .rung a,
-.rung-text {
+.overlay .rung a {
   display: flex;
   align-items: center;
   font-size: 13px;
@@ -56,14 +55,11 @@
   color: var(--fg);
   text-decoration: none;
   white-space: nowrap;
-  pointer-events: auto; /* lets the phone number be selected and copied */
 }
 
 /* The rung's wood: = from rope to label on both sides. */
 .overlay .rung a::before,
-.overlay .rung a::after,
-.rung-text::before,
-.rung-text::after {
+.overlay .rung a::after {
   content: "========================================================================================================================";
   flex: 1 1 0;
   min-width: 1ch;
