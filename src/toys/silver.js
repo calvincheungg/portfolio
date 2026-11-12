@@ -8,11 +8,13 @@ import { fonts } from "../lib/fonts.js";
 // createSilver({ envMap, track }) gives the materials plus builders:
 //   chromeMat / flutedMat / bandMat   plain worn silver, polished fluted ribs
 //                                     with dark grooves, the engraved band
-//   box(w, h, d)       a silver box with even-sized scratches on every face
+//   box(w, h, d, { sheen })  a silver box with even-sized scratches on every
+//                      face; `sheen` lets it catch the light along its length
 //   rod(r, length)     a silver cylinder (along y), likewise
 //   finial(scale)      a crown finial standing on y = 0
 //   stud()             a small fluted stud standing on y = 0
 //   bake(root)         call once everything is built and placed (see bakeSilver)
+//   variant(options)   another silver material (lighter, shinier…), tarnished the same
 // Everything it makes is passed to `track` for disposal.
 
 // The scratches, tarnish and where each piece's texture starts are random but
@@ -299,6 +301,33 @@ export function worldUVs(geo, w, h, d) {
   return geo;
 }
 
+/**
+ * Light a box as if its sides were gently rounded along its length (the
+ * shape stays the same): their normals lean out toward its ends and a little
+ * up toward the light. A flat box facing the camera otherwise reflects one
+ * even grey; this gives it the travelling sheen of a bar that catches the
+ * light, like the drawing board's tilted frame.
+ */
+const SHEEN_CURVE = 0.35; // how far the normals lean at the ends
+const SHEEN_LIFT = 0.12; // and up toward the light
+function sheen(geo, w, h, d) {
+  const size = [w, h, d];
+  const axis = size.indexOf(Math.max(...size)); // along its length
+  const half = size[axis] / 2;
+  const pos = geo.attributes.position;
+  const normal = geo.attributes.normal;
+  const n = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    n.fromBufferAttribute(normal, i);
+    if (Math.abs(n.getComponent(axis)) > 0.5) continue; // the ends stay as they are
+    n.setComponent(axis, n.getComponent(axis) + (pos.getComponent(i, axis) / half) * SHEEN_CURVE);
+    n.y += SHEEN_LIFT;
+    n.normalize();
+    normal.setXYZ(i, n.x, n.y, n.z);
+  }
+  return geo;
+}
+
 /** Scale a geometry's UVs so its scratches come out `u` by `v` tiles. */
 function scaleUVs(geo, u, v) {
   const uv = geo.attributes.uv;
@@ -382,8 +411,9 @@ export function createSilver({ envMap, track, onRedraw = () => {} }) {
     bandMat,
     materials,
 
-    box(w, h, d) {
-      return mesh(worldUVs(new THREE.BoxGeometry(w, h, d), w, h, d), chromeMat);
+    box(w, h, d, { sheen: shine = false } = {}) {
+      const geo = worldUVs(new THREE.BoxGeometry(w, h, d), w, h, d);
+      return mesh(shine ? sheen(geo, w, h, d) : geo, chromeMat);
     },
 
     rod(radius, length, segments = 20) {
@@ -416,6 +446,10 @@ export function createSilver({ envMap, track, onRedraw = () => {} }) {
 
     bake(root) {
       bakeSilver(root, materials);
+    },
+
+    variant(options) {
+      return silver(options);
     },
   };
 }

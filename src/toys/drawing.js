@@ -4,6 +4,7 @@ import { canvasTexture, makeCanvas, noisyFill, seeded, studioEnvMap } from "./te
 import { LN, grey, hexToRGB, pigment, rgbCss, toned } from "./colour.js";
 import { NAME_FONT, paintedName } from "./drawing-name.js";
 import { chalkTiger } from "./chalk-tiger.js";
+import { ebonyTextures, rawBlock } from "./ebony.js";
 import { createColourPicker } from "./colour-picker.js";
 import { createFeltEraser } from "./chalk-eraser.js";
 import { createSilver } from "./silver.js";
@@ -302,15 +303,17 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     return mesh;
   };
 
+  // The holder's bars catch the light along their length, like the frame.
+  const rail = (w, h, d) => silver.box(w, h, d, { sheen: true });
   for (const side of [-1, 1]) {
-    const post = box(POST, POST_H, POST);
+    const post = rail(POST, POST_H, POST);
     post.position.set(side * POST_X, POST_H / 2, 0);
     root.add(post);
-    const foot = box(POST + 0.04, 0.1, 0.75 + FEET_FRONT);
+    const foot = rail(POST + 0.04, 0.1, 0.75 + FEET_FRONT);
     foot.position.set(side * POST_X, 0.05, (FEET_FRONT - 0.75) / 2);
     root.add(foot);
     // Bracket from the post out to the tray.
-    const bracket = box(POST * 0.8, 0.06, TRAY_Z + 0.3);
+    const bracket = rail(POST * 0.8, 0.06, TRAY_Z + 0.3);
     bracket.position.set(side * POST_X, TRAY_Y - 0.06, (TRAY_Z + 0.3) / 2);
     root.add(bracket);
     // Pin through the post into the board, with a round knob outside.
@@ -328,9 +331,9 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     root.add(cap);
     // Stepped collars round the post, under the hinge and at its base.
     for (const y of [PIVOT_Y - 0.3, 0.14]) {
-      const wide = box(POST + 0.07, 0.06, POST + 0.07);
+      const wide = rail(POST + 0.07, 0.06, POST + 0.07);
       wide.position.set(side * POST_X, y, 0);
-      const narrow = box(POST + 0.035, 0.035, POST + 0.035);
+      const narrow = rail(POST + 0.035, 0.035, POST + 0.035);
       narrow.position.set(side * POST_X, y + 0.047, 0);
       root.add(wide, narrow);
     }
@@ -342,12 +345,16 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
       root.add(toe);
     }
   }
-  const tray = box(POST_X * 2, 0.06, 0.6);
+  // The tray, a lighter and more polished silver than the rest.
+  const trayMat = silver.variant({ color: 0xffffff, metalness: 0.6, roughness: 0.7, envMapIntensity: 0.9, emissive: 0x1c1d20 });
+  const tray = rail(POST_X * 2, 0.06, 0.6);
+  tray.material = trayMat;
   tray.position.set(0, TRAY_Y, TRAY_Z);
   tray.receiveShadow = true;
   root.add(tray);
   for (const z of [-0.3, 0.3]) {
-    const lip = box(POST_X * 2, 0.08, 0.03);
+    const lip = rail(POST_X * 2, 0.08, 0.03);
+    lip.material = trayMat;
     lip.position.set(0, TRAY_Y + 0.05, TRAY_Z + z);
     root.add(lip);
   }
@@ -361,30 +368,58 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
   const core = box(SURF_W, SURF_H, BOARD_T, track(new THREE.MeshStandardMaterial({ color: 0x3a2a1c })));
   board.add(core);
   const frameDepth = BOARD_T + 0.06;
+  // The frame: weathered ebony, unfinished, with raw chipped edges, like the
+  // Newton's cradle's base (ebony.js); the grain runs along each strip.
+  const ebony = ebonyTextures({ figure: true });
+  const frameMat = track(
+    new THREE.MeshStandardMaterial({
+      map: track(ebony.map),
+      roughnessMap: track(ebony.roughnessMap),
+      roughness: 1, // scaled by the map
+      bumpMap: track(ebony.bumpMap),
+      bumpScale: 0.8,
+      envMap,
+      envMapIntensity: 0.25, // an oiled sheen, nothing more
+    })
+  );
   const frameEnds = []; // the top and bottom: grab one to turn the board
-  for (const [w, h, x, y] of [
-    [BOARD_W, FRAME, 0, (SURF_H + FRAME) / 2],
-    [BOARD_W, FRAME, 0, -(SURF_H + FRAME) / 2],
-    [FRAME, SURF_H, (SURF_W + FRAME) / 2, 0],
-    [FRAME, SURF_H, -(SURF_W + FRAME) / 2, 0],
+  // The sides run on into the top and bottom (a little thinner, tucked
+  // behind their faces), so the chipped ends meet without a gap.
+  for (const [length, x, y, upright] of [
+    [BOARD_W, 0, (SURF_H + FRAME) / 2, false],
+    [BOARD_W, 0, -(SURF_H + FRAME) / 2, false],
+    [SURF_H + FRAME * 1.6, (SURF_W + FRAME) / 2, 0, true],
+    [SURF_H + FRAME * 1.6, -(SURF_W + FRAME) / 2, 0, true],
   ]) {
-    const strip = box(w, h, frameDepth);
+    const depth = upright ? frameDepth - 0.024 : frameDepth;
+    const strip = new THREE.Mesh(track(rawBlock(length, FRAME, depth, { chips: 0.45 })), frameMat);
+    if (upright) strip.rotation.z = Math.PI / 2; // grain up the sides
     strip.position.set(x, y, 0);
+    strip.castShadow = strip.receiveShadow = true;
     board.add(strip);
-    if (x === 0) {
+    if (!upright) {
       strip.userData.action = "frame";
       frameEnds.push(strip);
     }
   }
 
-  // Fluted studs on the frame's corners, both faces.
+  // Bolts through the frame's corners, both faces: a fluted head on a round
+  // washer, sunk a hair into the wood so they sit tight on it.
+  const SINK = 0.006;
+  const BOLT_SCALE = 0.6;
   for (const x of [-1, 1]) {
     for (const y of [-1, 1]) {
       for (const z of [-1, 1]) {
-        const stud = silver.stud();
-        stud.rotation.x = (z * Math.PI) / 2;
-        stud.position.set((x * (SURF_W + FRAME)) / 2, (y * (SURF_H + FRAME)) / 2, (z * frameDepth) / 2);
-        board.add(stud);
+        const bolt = new THREE.Group();
+        const washer = silver.rod(0.078, 0.018, 28);
+        washer.position.y = 0.009 - SINK;
+        const head = silver.stud();
+        head.position.y = 0.018 - SINK;
+        bolt.add(washer, head);
+        bolt.scale.setScalar(BOLT_SCALE);
+        bolt.rotation.x = (z * Math.PI) / 2; // facing out of this face
+        bolt.position.set((x * (SURF_W + FRAME)) / 2, (y * (SURF_H + FRAME)) / 2, (z * frameDepth) / 2);
+        board.add(bolt);
       }
     }
   }

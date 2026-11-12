@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { canvasTexture, noise, noisyFill } from "./textures.js";
+import { canvasTexture, noise, noisyFill, seeded } from "./textures.js";
 
 // The Newton's cradle's base: weathered ebony with raw, unfinished edges.
 // ebonyTextures() paints the wood; rawBlock() shapes a chipped, rough-sawn block
@@ -12,11 +12,15 @@ const EBONY_TILE = [4, 2]; // world units the wood texture covers (along the gra
  * with dark brown streaks along the grain, dry greyish patches where it's
  * weathered, and fine cracks (checks) running with the grain. A natural, oiled
  * finish rather than a polish, so it stays fairly matte.
+ *
+ * With `figure`, the grain shows distinctly too: fine lighter-brown lines
+ * along it, and a few cathedrals (the nested arches of a sawn board), lightly
+ * open in the surface so they catch the light.
  */
-export function ebonyTextures() {
+export function ebonyTextures({ figure = false } = {}) {
   const W = 1024;
   const H = 512;
-  const rand = Math.random;
+  const rand = seeded(301); // the same wood every visit
   // Grain streaks: wavy lines across the whole width. Whole numbers of waves,
   // so they meet themselves at the tile's edges.
   const streaks = Array.from({ length: 90 }, () => ({
@@ -30,6 +34,23 @@ export function ebonyTextures() {
   }));
   const patches = Array.from({ length: 16 }, () => ({ x: rand() * W, y: rand() * H, rx: 80 + rand() * 260, ry: 20 + rand() * 70, a: 0.06 + rand() * 0.1 }));
   const checks = Array.from({ length: 70 }, () => ({ x: rand() * W, y: rand() * H, len: 15 + rand() ** 2 * 140, w: 0.6 + rand() * 1.1, a: 0.5 + rand() * 0.4 }));
+  // The figure (after the rest, so plain ebony comes out as before).
+  // The grain lines all follow one gentle flow, so they run together
+  // without crossing, each with a little wobble of its own.
+  const flow = { waves: 2, phase: rand() * Math.PI * 2, amp: 14 };
+  const lines = figure
+    ? Array.from({ length: 120 }, (_, i) => ({
+        y: ((i + rand() * 0.6) / 120) * H,
+        waves: 3 + Math.floor(rand() * 3),
+        phase: rand() * Math.PI * 2,
+        amp: 0.6 + rand() * 1.4,
+        width: 0.7 + rand() * 1.5,
+        a: 0.18 + rand() * 0.32,
+      }))
+    : [];
+  const cathedrals = figure
+    ? Array.from({ length: 4 }, (_, i) => ({ x: ((i + 0.3 + rand() * 0.4) / 4) * W, y: rand() * H, rings: 6 + Math.floor(rand() * 4), gap: 5 + rand() * 3, a: 0.3 + rand() * 0.15 }))
+    : [];
 
   // Draw each mark again a tile over wherever it runs off an edge.
   const wrapped = (x, y, reach, draw) => {
@@ -46,6 +67,24 @@ export function ebonyTextures() {
       const y = st.y + dy + Math.sin((x / W) * Math.PI * 2 * st.waves + st.phase) * st.amp;
       x ? c.lineTo(x, y) : c.moveTo(x, y);
     }
+  };
+  const linePath = (c, ln, dy) => {
+    c.beginPath();
+    for (let x = 0; x <= W; x += 8) {
+      const u = (x / W) * Math.PI * 2;
+      const y = ln.y + dy + Math.sin(u * flow.waves + flow.phase) * flow.amp + Math.sin(u * ln.waves + ln.phase) * ln.amp;
+      x ? c.lineTo(x, y) : c.moveTo(x, y);
+    }
+  };
+  /** One cathedral: nested arches pointing along the grain, trailing off into straight grain. */
+  const cathedralPath = (c, cd, x, y, j) => {
+    const half = j * cd.gap;
+    const length = 30 + j * 42;
+    const tail = 120;
+    c.beginPath();
+    c.moveTo(x - length - tail, y - half);
+    for (let t = -1; t <= 1.001; t += 0.1) c.lineTo(x - length * t * t, y + half * t);
+    c.lineTo(x - length - tail, y + half);
   };
   const checkPath = (c, x, y, len) => {
     c.beginPath();
@@ -65,8 +104,8 @@ export function ebonyTextures() {
   };
 
   // One pass of every mark, in the colours each map wants.
-  function paint(c, { base, noise, streak, weather, crack, crackLip }) {
-    noisyFill(c, W, H, base, noise);
+  function paint(c, { base, noise, streak, grain, weather, crack, crackLip }) {
+    noisyFill(c, W, H, base, noise, rand);
     for (const st of streaks) {
       c.strokeStyle = streak(st);
       c.lineWidth = st.width;
@@ -74,6 +113,24 @@ export function ebonyTextures() {
         streakPath(c, st, dy);
         c.stroke();
       }
+    }
+    for (const ln of lines) {
+      c.strokeStyle = `rgba(${grain}, ${ln.a})`;
+      c.lineWidth = ln.width;
+      for (const dy of [-H, 0, H]) {
+        linePath(c, ln, dy);
+        c.stroke();
+      }
+    }
+    for (const cd of cathedrals) {
+      wrapped(cd.x, cd.y, 30 + cd.rings * 42 + 120, (x, y) => {
+        for (let j = 1; j <= cd.rings; j++) {
+          cathedralPath(c, cd, x, y, j);
+          c.strokeStyle = `rgba(${grain}, ${cd.a})`;
+          c.lineWidth = 1.2 + (j % 3) * 0.5;
+          c.stroke();
+        }
+      });
     }
     for (const p of patches) wrapped(p.x, p.y, p.rx, (x, y) => patch(c, p, x, y, weather, p.a));
     for (const k of checks) {
@@ -99,6 +156,7 @@ export function ebonyTextures() {
       noise: 10,
       // Mostly black streaks, some warm dark brown.
       streak: (st) => (st.tone < 0.55 ? `rgba(6, 4, 3, ${st.a})` : `rgba(64, 44, 30, ${st.a * 0.8})`),
+      grain: "150, 108, 74", // the figure, lighter brown
       weather: "128, 120, 110", // dry, greyed wood
       crack: "2, 2, 2",
       crackLip: "rgba(90, 80, 70, 0.25)",
@@ -108,6 +166,7 @@ export function ebonyTextures() {
       base: "rgb(185, 185, 185)", // oiled, not polished
       noise: 14,
       streak: (st) => `rgba(${st.tone < 0.55 ? "160, 160, 160" : "215, 215, 215"}, ${st.a})`,
+      grain: "205, 205, 205",
       weather: "245, 245, 245", // weathered patches are dry and dull
       crack: "255, 255, 255",
     }), { ...opts, color: false });
@@ -116,6 +175,7 @@ export function ebonyTextures() {
       base: "rgb(150, 150, 150)",
       noise: 18,
       streak: (st) => `rgba(${st.tone < 0.55 ? "110, 110, 110" : "185, 185, 185"}, ${st.a})`,
+      grain: "105, 105, 105", // open, a little below the surface
       weather: "130, 130, 130",
       crack: "0, 0, 0", // cut into the surface
     }), { ...opts, color: false });
@@ -129,11 +189,11 @@ export function ebonyTextures() {
  * a function of where it is, so the faces still meet exactly along the edges.
  * UVs follow world size, with the grain running along x.
  */
-export function rawBlock(w, h, d) {
+export function rawBlock(w, h, d, { chips = 1 } = {}) {
   const DENSITY = 24; // segments per unit, so chips have vertices to shape them
   const geo = new THREE.BoxGeometry(w, h, d, Math.round(w * DENSITY), Math.max(4, Math.round(h * DENSITY)), Math.round(d * DENSITY));
   const half = [w / 2, h / 2, d / 2];
-  const BAND = 0.09; // how far a chip reaches in from an edge
+  const BAND = 0.09 * chips; // how far a chip reaches in from an edge (`chips` scales them, for thinner pieces)
   const pos = geo.attributes.position;
   const normal = geo.attributes.normal;
   const uv = geo.attributes.uv;
@@ -143,7 +203,7 @@ export function rawBlock(w, h, d) {
   const chip = (t, edge) => {
     const n = noise(t * 5 + edge * 17.3);
     const gouge = Math.max(0, noise(t * 13 + edge * 7.1) - 0.72) / 0.28;
-    return 0.008 + 0.03 * n * n + 0.045 * gouge * gouge;
+    return (0.008 + 0.03 * n * n + 0.045 * gouge * gouge) * chips;
   };
 
   for (let i = 0; i < pos.count; i++) {
