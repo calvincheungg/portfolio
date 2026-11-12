@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { canvasTexture, noisyFill } from "./textures.js";
+import { canvasTexture, noisyFill, seeded } from "./textures.js";
 import { fonts } from "../lib/fonts.js";
 
 // Old, worn silver and its ornamental hardware, shared by the toys (the
@@ -15,7 +15,11 @@ import { fonts } from "../lib/fonts.js";
 //   bake(root)         call once everything is built and placed (see bakeSilver)
 // Everything it makes is passed to `track` for disposal.
 
-const rand = Math.random;
+// The scratches, tarnish and where each piece's texture starts are random but
+// seeded, restarting with every createSilver, so the silver looks the same
+// every visit.
+const SILVER_SEED = 4711;
+let rand = seeded(SILVER_SEED);
 
 // The band's engraving, in blackletter.
 const BAND_TEXT = "Calvin";
@@ -86,7 +90,7 @@ function silverTextures() {
   }
 
   const map = canvasTexture(S, (c) => {
-    noisyFill(c, S, S, "#74767a", 12);
+    noisyFill(c, S, S, "#74767a", 12, rand);
     for (const m of marks) {
       c.strokeStyle = m.dark ? `rgba(18, 18, 20, ${m.a})` : `rgba(215, 220, 226, ${m.a})`;
       c.lineWidth = m.w;
@@ -309,6 +313,7 @@ function scaleUVs(geo, u, v) {
  * runs if the band's engraving is redrawn once its font arrives.
  */
 export function createSilver({ envMap, track, onRedraw = () => {} }) {
+  rand = seeded(SILVER_SEED);
   const textures = silverTextures();
   track(textures.map);
   track(textures.roughnessMap);

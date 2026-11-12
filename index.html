@@ -42,8 +42,6 @@
 <body>
   <main class="hero">
     <canvas id="stage" role="img" aria-label="Interactive toys: a drawing board with Calvin painted on it to start. Right-click to choose a different toy."></canvas>
-    <!-- The toy menu for keyboards: out of sight until tabbed to (right-click and long press open it too). -->
-    <button class="text-btn ascii-btn toy-switch" id="toy-switch" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="toy-menu">Choose a toy</button>
     <!-- Shown instead of the canvas if the 3D scene can't start (see src/main.js). -->
     <img id="stage-fallback" alt="Wooden toy blocks spelling CALVIN" width="2200" height="520" hidden>
 
@@ -77,6 +75,8 @@
 
     <footer class="overlay bottom">
       <button class="text-btn ascii-btn" id="about-toggle" type="button" aria-haspopup="dialog" aria-controls="about">About</button>
+      <!-- Opens the toy menu (right-click and long press on the scene do too). -->
+      <button class="text-btn ascii-btn" id="toy-switch" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="toy-menu">Choose a toy</button>
       <div class="settings">
         <button class="text-btn ascii-btn" id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings-panel">Settings</button>
         <div class="settings-panel card" id="settings-panel" role="group" aria-label="Settings" data-ascii-title="Settings">
@@ -113,7 +113,7 @@
     </footer>
   </main>
 
-  <div class="toy-menu card" id="toy-menu" role="menu" aria-label="Toys" data-ascii-title="toys"></div>
+  <div class="toy-menu card" id="toy-menu" role="menu" aria-label="Toys"></div>
 
   <!-- Now playing: keeps music going across toys. Spotify's player goes in the slot. -->
   <aside class="now-playing card" id="now-playing" aria-label="Now playing">

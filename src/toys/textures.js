@@ -13,6 +13,17 @@ export function seeded(seed) {
   };
 }
 
+/** Smooth 1D value noise, 0–1: the same for the same `t`, every visit. */
+export function noise(t) {
+  const hash = (n) => {
+    const v = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+    return v - Math.floor(v);
+  };
+  const i = Math.floor(t);
+  const f = t - i;
+  return hash(i) + (hash(i + 1) - hash(i)) * f * f * (3 - 2 * f);
+}
+
 /** A soft studio room for metal and shiny plastic to reflect (dispose it with the toy). */
 export function studioEnvMap(renderer) {
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -62,14 +73,14 @@ export function roundRect(c, x, y, w, h, r) {
   c.closePath();
 }
 
-/** Fill with `color` plus a little per-pixel noise. */
-export function noisyFill(c, w, h, color, amount) {
+/** Fill with `color` plus a little per-pixel noise (from `random`, 0–1). */
+export function noisyFill(c, w, h, color, amount, random = Math.random) {
   c.fillStyle = color;
   c.fillRect(0, 0, w, h);
   const img = c.getImageData(0, 0, w, h);
   const d = img.data;
   for (let i = 0; i < d.length; i += 4) {
-    const n = (Math.random() - 0.5) * amount;
+    const n = (random() - 0.5) * amount;
     d[i] += n;
     d[i + 1] += n;
     d[i + 2] += n;

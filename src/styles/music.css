@@ -5,7 +5,7 @@
 .now-playing {
   position: fixed;
   left: 50%;
-  bottom: 16px;
+  bottom: 64px; /* above the bottom bar, clear of Choose a toy */
   z-index: 5;
   width: 380px; /* room for the controls; Spotify's player clips below ~320px */
   padding: 20px 2ch 16px;

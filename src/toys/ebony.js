@@ -1,20 +1,9 @@
 import * as THREE from "three";
-import { canvasTexture, noisyFill } from "./textures.js";
+import { canvasTexture, noise, noisyFill } from "./textures.js";
 
 // The Newton's cradle's base: weathered ebony with raw, unfinished edges.
 // ebonyTextures() paints the wood; rawBlock() shapes a chipped, rough-sawn block
 // whose UVs lay that wood along it.
-
-const hash = (n) => {
-  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
-  return x - Math.floor(x);
-};
-/** Smooth 1D value noise, 0–1. */
-function noise1(t) {
-  const i = Math.floor(t);
-  const f = t - i;
-  return hash(i) + (hash(i + 1) - hash(i)) * f * f * (3 - 2 * f);
-}
 
 const EBONY_TILE = [4, 2]; // world units the wood texture covers (along the grain, across)
 
@@ -152,8 +141,8 @@ export function rawBlock(w, h, d) {
 
   // How deep the edge is chipped at `t` along it: always a little, sometimes a lot.
   const chip = (t, edge) => {
-    const n = noise1(t * 5 + edge * 17.3);
-    const gouge = Math.max(0, noise1(t * 13 + edge * 7.1) - 0.72) / 0.28;
+    const n = noise(t * 5 + edge * 17.3);
+    const gouge = Math.max(0, noise(t * 13 + edge * 7.1) - 0.72) / 0.28;
     return 0.008 + 0.03 * n * n + 0.045 * gouge * gouge;
   };
 

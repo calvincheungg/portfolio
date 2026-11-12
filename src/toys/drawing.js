@@ -1,9 +1,11 @@
 import * as THREE from "three";
 import { gsap } from "gsap";
-import { canvasTexture, makeCanvas, noisyFill, studioEnvMap } from "./textures.js";
+import { canvasTexture, makeCanvas, noisyFill, seeded, studioEnvMap } from "./textures.js";
 import { LN, grey, hexToRGB, pigment, rgbCss, toned } from "./colour.js";
 import { NAME_FONT, paintedName } from "./drawing-name.js";
+import { chalkTiger } from "./chalk-tiger.js";
 import { createColourPicker } from "./colour-picker.js";
+import { createFeltEraser } from "./chalk-eraser.js";
 import { createSilver } from "./silver.js";
 import { onResize } from "../scene/stage.js";
 import { reduceMotion } from "../settings.js";
@@ -109,11 +111,15 @@ function loadPaintSettings() {
   return settings;
 }
 
+// Live strokes are naturally random; the board itself (its textures, the
+// chalk grain, the tray) uses seeded randomness, each part its own seed, so
+// it looks the same every visit.
 const rand = Math.random;
 
 // ---------- Textures ----------
 
 function woodTexture() {
+  const rand = seeded(101);
   return canvasTexture(512, (c, s) => {
     const grad = c.createLinearGradient(0, 0, s, s);
     grad.addColorStop(0, "hsl(33, 50%, 66%)");
@@ -138,11 +144,12 @@ function woodTexture() {
 
 // Slate: dark green with the ghosts of old lessons wiped across it.
 function slateCanvas() {
+  const rand = seeded(102);
   const cv = document.createElement("canvas");
   cv.width = INK_W / 2;
   cv.height = INK_H / 2;
   const c = cv.getContext("2d");
-  noisyFill(c, cv.width, cv.height, "#27352f", 10);
+  noisyFill(c, cv.width, cv.height, "#27352f", 10, rand);
   for (let i = 0; i < 18; i++) {
     const x = rand() * cv.width;
     const y = rand() * cv.height;
@@ -163,11 +170,12 @@ function slateCanvas() {
 
 // Primed canvas: warm off-white with a linen weave.
 function linenCanvas() {
+  const rand = seeded(103);
   const cv = document.createElement("canvas");
   cv.width = INK_W / 2;
   cv.height = INK_H / 2;
   const c = cv.getContext("2d");
-  noisyFill(c, cv.width, cv.height, "#f4efe3", 8);
+  noisyFill(c, cv.width, cv.height, "#f4efe3", 8, rand);
   for (let x = 0; x < cv.width; x += 3) {
     c.fillStyle = `rgba(120, 100, 70, ${0.02 + rand() * 0.04})`;
     c.fillRect(x, 0, 1, cv.height);
@@ -193,6 +201,7 @@ function chalkGrain(ctx, color) {
 
 function grainImage(color) {
   if (!grainCache.has(color)) {
+    const rand = seeded(104); // the same grain for every colour, like one board's surface
     const small = document.createElement("canvas");
     small.width = small.height = 96;
     const sc = small.getContext("2d");
@@ -352,6 +361,7 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
   const core = box(SURF_W, SURF_H, BOARD_T, track(new THREE.MeshStandardMaterial({ color: 0x3a2a1c })));
   board.add(core);
   const frameDepth = BOARD_T + 0.06;
+  const frameEnds = []; // the top and bottom: grab one to turn the board
   for (const [w, h, x, y] of [
     [BOARD_W, FRAME, 0, (SURF_H + FRAME) / 2],
     [BOARD_W, FRAME, 0, -(SURF_H + FRAME) / 2],
@@ -361,6 +371,10 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     const strip = box(w, h, frameDepth);
     strip.position.set(x, y, 0);
     board.add(strip);
+    if (x === 0) {
+      strip.userData.action = "frame";
+      frameEnds.push(strip);
+    }
   }
 
   // Fluted studs on the frame's corners, both faces.
@@ -396,10 +410,10 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     face.add(surface);
 
     const paint = mode === "paint";
-    // Paint is mixed pixel by pixel in script, so keep it in memory where
-    // reading it back is quick.
+    // Paint is mixed, and chalk picked up by the eraser, pixel by pixel in
+    // script, so keep the ink in memory where reading it back is quick.
     const ink = makeCanvas(INK_W, INK_H);
-    const ctx = ink.getContext("2d", paint ? { willReadFrequently: true } : undefined);
+    const ctx = ink.getContext("2d", { willReadFrequently: true });
     const inkTex = track(new THREE.CanvasTexture(ink));
     inkTex.colorSpace = THREE.SRGBColorSpace;
     inkTex.anisotropy = 8;
@@ -452,6 +466,7 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     paint: makeSide("paint", linenCanvas(), 0.85),
   };
 
+  const trayRand = seeded(105); // how the chalk lies on the tray
   // ----- Tray items (clickable shortcuts) -----
   const items = [];
   function addItem(mesh, data, x, z = 0, yaw = 0) {
@@ -483,7 +498,7 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     const holder = new THREE.Group();
     stick.rotation.z = Math.PI / 2;
     holder.add(stick);
-    addItem(holder, { tool: "color", mode: "chalk", color, h: 0.1 }, -POST_X + 1.3 + i * 0.42, (i % 2 ? -0.08 : 0.08), (rand() - 0.5) * 0.4);
+    addItem(holder, { tool: "color", mode: "chalk", color, h: 0.1 }, -POST_X + 1.3 + i * 0.42, (i % 2 ? -0.08 : 0.08), (trayRand() - 0.5) * 0.4);
     stick.userData = holder.userData;
   });
 
@@ -524,7 +539,7 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     }
   });
 
-  const pickables = [sides.chalk.surface, sides.paint.surface];
+  const pickables = [sides.chalk.surface, sides.paint.surface, ...frameEnds];
   for (const item of items) item.traverse((o) => o.isMesh && pickables.push(o));
 
   // ----- Toolbar -----
@@ -727,31 +742,90 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
   let flipping = false;
   let spin = -TILT + Math.PI;
 
-  function setMode(mode) {
-    if (mode === state.mode) return;
+  /** Make `mode` the side in use (whoever calls this turns the board). */
+  function useSide(mode) {
     state.mode = mode;
     state.erasing = false;
     endStroke();
     picker.show(false);
     renderSwatches();
     brushPreview.visible = false; // until the pointer moves over the new side
-    spin += Math.PI; // always over the top in the same direction
+  }
+
+  /** Turn the board to `to` (radians), settling with a bounce. */
+  function spinTo(to, duration) {
+    spin = to;
     gsap.killTweensOf(board.rotation);
     if (reduceMotion()) {
       board.rotation.x = spin;
-    } else {
-      flipping = true;
-      gsap.to(board.rotation, {
-        x: spin,
-        duration: 1.1,
-        ease: "back.out(1.3)",
-        onComplete: () => (flipping = false),
-      });
+      flipping = false;
+      return;
     }
+    flipping = true;
+    gsap.to(board.rotation, { x: spin, duration, ease: "back.out(1.3)", onComplete: () => (flipping = false) });
+  }
+
+  /** Switch sides from the toolbar, keys or tray: the board spins over. */
+  function setMode(mode) {
+    if (mode === state.mode) return;
+    useSide(mode);
+    spinTo(spin + Math.PI, 1.1); // always over the top in the same direction
+  }
+
+  // ----- Turning the board by hand -----
+  // Grab the top or bottom of the frame and drag up or down: the board turns
+  // on its pins, the grabbed edge following the pointer. Let go and it
+  // settles on the nearer face (a flick carries it on over). A click without
+  // dragging flips it, like the Chalkboard / Canvas switch.
+  const TURN_GAIN = 1.9;
+  const faceAt = (n) => (((n % 2) + 2) % 2 === 1 ? "paint" : "chalk"); // spin = -TILT + n·π
+  function turnBoard(hit) {
+    endStroke();
+    gsap.killTweensOf(board.rotation);
+    flipping = true;
+    brushPreview.visible = false;
+    const pivot = board.getWorldPosition(new THREE.Vector3());
+    const reach = Math.max(0.3, Math.abs(hit.point.y - pivot.y)); // how far out it was grabbed
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()).negate(), hit.point);
+    const at = new THREE.Vector3();
+    const start = board.rotation.x;
+    let moved = 0;
+    let speed = 0; // radians a second, for a flick
+    let last = { angle: start, time: performance.now() };
+    return {
+      move(ray) {
+        if (!ray.intersectPlane(plane, at)) return;
+        // Dragging down tips the top toward you; dragging up, the bottom.
+        // Dragging as far as the edge is from the pins turns it past halfway.
+        const angle = start - ((at.y - hit.point.y) / reach) * TURN_GAIN;
+        moved = Math.max(moved, Math.abs(angle - start));
+        const now = performance.now();
+        if (now > last.time) speed = speed * 0.5 + ((angle - last.angle) / ((now - last.time) / 1000)) * 0.5;
+        last = { angle, time: now };
+        board.rotation.x = angle;
+        dirty = true;
+      },
+      release() {
+        let n;
+        if (moved < 0.05) n = Math.round((spin + TILT) / Math.PI) + 1; // a click: over to the other side
+        else {
+          const recent = performance.now() - last.time < 120 ? speed : 0;
+          n = Math.round((board.rotation.x + recent * 0.18 + TILT) / Math.PI);
+        }
+        const mode = faceAt(n);
+        if (mode !== state.mode) {
+          useSide(mode);
+          syncUI();
+        }
+        spinTo(-TILT + n * Math.PI, 0.7);
+        dirty = true;
+      },
+    };
   }
 
   // ----- Drawing -----
   let dirty = true;
+  const feltEraser = createFeltEraser(); // the chalkboard's (chalk-eraser.js)
   let stroke = null; // the stroke being drawn (see startStroke)
   const undoStack = []; // { side, snapshot }
 
@@ -936,20 +1010,18 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
   function paintSegment(side, from, ctrl, to) {
     const c = side.ctx;
     const w = width();
+    if (state.erasing && state.mode === "chalk") {
+      feltEraser.wipe(side.ctx, from, ctrl, to, w);
+      return;
+    }
     if (state.erasing) {
+      // Paint comes off clean.
       for (const e of [c, side.heightCtx]) {
-        if (!e) continue;
         e.globalCompositeOperation = "destination-out";
         e.strokeStyle = "#000";
         e.lineWidth = w;
         curve(e, from, ctrl, to);
         e.globalCompositeOperation = "source-over";
-      }
-      if (state.mode === "chalk") {
-        // Felt erasers leave a faint smudge behind.
-        c.globalCompositeOperation = "source-over";
-        c.strokeStyle = "rgba(235, 240, 230, 0.035)";
-        curve(c, from, ctrl, to);
       }
       return;
     }
@@ -1042,6 +1114,7 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     const saved = pushUndo(side);
     const painting = state.mode === "paint" && !state.erasing;
     if (painting) side.layerCtx.clearRect(0, 0, INK_W, INK_H);
+    if (state.erasing && state.mode === "chalk") feltEraser.start();
     const { thickness, chunk, mix } = state.paint;
     const loaded = hexToRGB(state.color.paint);
     stroke = {
@@ -1119,6 +1192,21 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
       }
       markInk(side);
     });
+
+  // ----- The tiger painting, already on the chalkboard in chalk (chalk-tiger.js) -----
+  // The board opens on the canvas, so this waits until the browser's free.
+  const whenIdle = window.requestIdleCallback ?? ((fn) => setTimeout(fn, 200));
+  whenIdle(async () => {
+    if (disposed || nameCleared) return;
+    const picture = await chalkTiger(INK_W, INK_H, chalkGrain, { cancelled: () => disposed || nameCleared }).catch(() => null);
+    if (!picture || disposed || nameCleared) return;
+    const side = sides.chalk;
+    side.ctx.save();
+    side.ctx.globalCompositeOperation = "destination-over"; // under anything drawn already
+    side.ctx.drawImage(picture, 0, 0);
+    side.ctx.restore();
+    markInk(side);
+  });
 
   // ----- Picking tools from the tray -----
   function pickItem({ tool, mode, color, brush }) {
@@ -1205,6 +1293,16 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     c.save();
     c.translate(PREVIEW_PX / 2, PREVIEW_PX / 2);
     c.scale(PREVIEW_PX / span, PREVIEW_PX / span);
+    if (state.erasing && state.mode === "chalk") feltEraser.drawCursor(c, w); // the felt eraser itself
+    else drawFootprint(c, w, flat, length);
+    c.restore();
+    previewTex.needsUpdate = true;
+    brushPreview.scale.setScalar((span * SURF_W) / INK_W);
+    dirty = true;
+  }
+
+  /** A brush's footprint (filled with its colour) or the paint eraser's (dashed), `w` ink px. */
+  function drawFootprint(c, w, flat, length) {
     c.beginPath();
     if (flat) {
       // The flat brush's edge, at the angle it's held.
@@ -1225,10 +1323,6 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     c.strokeStyle = state.mode === "paint" ? "rgba(29, 27, 24, 0.7)" : "rgba(243, 240, 232, 0.85)";
     if (state.erasing) c.setLineDash([w * 0.08, w * 0.06]); // dashed: it takes away
     c.stroke();
-    c.restore();
-    previewTex.needsUpdate = true;
-    brushPreview.scale.setScalar((span * SURF_W) / INK_W);
-    dirty = true;
   }
 
   renderSwatches();
@@ -1253,6 +1347,7 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
     // Tray items are clicked; over the board the brush preview is the cursor.
     cursorFor(hit) {
       if (hit.object.userData.tool) return "pointer";
+      if (hit.object.userData.action === "frame") return "grab";
       return activeSide(hit) ? "none" : "crosshair";
     },
 
@@ -1277,6 +1372,7 @@ export function createDrawingBoard({ scene, camera, renderer, bounds }) {
         pickItem(userData);
         return { move() {}, release() {} };
       }
+      if (userData.action === "frame") return turnBoard(hit);
       const side = sides[userData.side];
       if (flipping || side.mode !== state.mode || !hit.uv) return { move() {}, release() {} };
       startStroke(side, toInk(hit.uv));

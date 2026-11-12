@@ -20,6 +20,7 @@ import("./scene/index.js").catch((err) => {
   const canvas = document.getElementById("stage");
   const img = document.getElementById("stage-fallback");
   canvas.hidden = true;
+  document.getElementById("toy-switch").hidden = true; // no toys to choose
   img.src = "/blocks.png"; // only downloaded when needed
   img.hidden = false;
 });

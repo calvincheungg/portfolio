@@ -2,12 +2,10 @@ import { gsap } from "gsap";
 import { createPopover, popIn, popOut } from "./popover.js";
 
 // Pop-up menu for picking a toy, opened at the pointer (right-click or long
-// press) or under `trigger`, a button for keyboards. `actions` are extra
+// press) or above `trigger`, the Choose a toy button. `actions` are extra
 // commands listed under the toys, e.g. [{ label: "Reset", onClick }]. Focus
 // goes back where it was when the menu closes.
 export function createToyMenu(el, toys, onSelect, actions = [], { trigger } = {}) {
-  // (The title, "toys", is drawn in its ASCII frame.)
-
   function addItem(label, role, onClick) {
     const item = document.createElement("button");
     item.type = "button";
@@ -35,7 +33,12 @@ export function createToyMenu(el, toys, onSelect, actions = [], { trigger } = {}
   const popover = createPopover({
     panel: el,
     isInside: (target) => el.contains(target) || !!trigger?.contains(target),
-    show: () => popIn(el, { scale: 0.9, y: -6, transformOrigin: "0% 0%" }, { duration: 0.35, ease: "back.out(2.2)" }),
+    show: () =>
+      popIn(
+        el,
+        fromBelow ? { scale: 0.9, y: 6, transformOrigin: "50% 100%" } : { scale: 0.9, y: -6, transformOrigin: "0% 0%" },
+        { duration: 0.35, ease: "back.out(2.2)" }
+      ),
     hide: () => popOut(el, { scale: 0.96 }, { duration: 0.12 }),
     onChange(open) {
       trigger?.setAttribute("aria-expanded", String(open));
@@ -44,16 +47,25 @@ export function createToyMenu(el, toys, onSelect, actions = [], { trigger } = {}
     },
   });
 
-  function open(x, y, currentId) {
+  let fromBelow = false; // opened above the trigger, so it grows upward
+
+  /**
+   * Open with its top-left corner at (x, y), or with `above` its bottom edge
+   * there and centred on x. It's kept on screen either way.
+   */
+  function open(x, y, currentId, { above = false } = {}) {
     if (!popover.isOpen) opener = document.activeElement;
     for (const item of items) item.setAttribute("aria-checked", String(item.dataset.id === currentId));
 
-    // Keep it on screen. Measure at full size (still invisible if it was
-    // closed; if it's already open, just move it).
+    // Measure at full size (still invisible if it was closed; if it's already
+    // open, just move it).
     if (!popover.isOpen) gsap.set(el, { autoAlpha: 0, scale: 1, y: 0 });
     const { width, height } = el.getBoundingClientRect();
-    el.style.left = `${Math.max(8, Math.min(x, window.innerWidth - width - 8))}px`;
-    el.style.top = `${Math.max(8, Math.min(y, window.innerHeight - height - 8))}px`;
+    const left = above ? x - width / 2 : x;
+    const top = above ? y - height : y;
+    el.style.left = `${Math.max(8, Math.min(left, window.innerWidth - width - 8))}px`;
+    el.style.top = `${Math.max(8, Math.min(top, window.innerHeight - height - 8))}px`;
+    fromBelow = above;
 
     popover.open();
     // (It fades in from hidden, and hidden things can't take focus.)

@@ -117,11 +117,9 @@ body {
 }
 
 .overlay.top { top: 0; }
-/* Bottom bar only has corner items (About, Settings). */
+/* Bottom bar: About, Choose a toy (centred), Settings. */
 .overlay.bottom {
   bottom: 0;
-  display: flex;
-  justify-content: space-between;
 }
 
 /* Keep corner items only as wide as their text so they don't block dragging. */

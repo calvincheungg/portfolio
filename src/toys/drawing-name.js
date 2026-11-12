@@ -1,4 +1,4 @@
-import { makeCanvas } from "./textures.js";
+import { makeCanvas, seeded } from "./textures.js";
 import { grey, hexToRGB, toned } from "./colour.js";
 
 // "Calvin", already painted on the drawing board's canvas when it opens: in
@@ -8,7 +8,8 @@ import { grey, hexToRGB, toned } from "./colour.js";
 // The letters are thinned to their centre lines, which are then painted over
 // as brush strokes, in colour and in relief (how high the paint stands).
 
-const rand = Math.random;
+// Seeded afresh for each painting, so it's the same every visit.
+let rand = seeded(1);
 
 const NAME_TEXT = "Calvin";
 export const NAME_FONT = '"UnifrakturMaguntia"'; // blackletter, loaded with the site's Google Fonts
@@ -326,6 +327,7 @@ function plainV(c, layout) {
  * { w, h } in px), painted with a flat brush `brush` px wide.
  */
 export function paintedName(fontFamily, ink, brush) {
+  rand = seeded(2701);
   const color = makeCanvas(ink.w, ink.h);
   const relief = makeCanvas(ink.w, ink.h);
   const cc = color.getContext("2d");

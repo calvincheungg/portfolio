@@ -80,11 +80,11 @@ const menu = createToyMenu(
   [{ label: "Reset", onClick: () => loadToy(toyId) }],
   { trigger: toySwitch }
 );
-// The keyboard way in: opens the menu just under the button.
+// Choose a toy, in the bottom bar: opens the menu just above it.
 toySwitch.addEventListener("click", () => {
   if (toySwitch.getAttribute("aria-expanded") === "true") return menu.close();
   const r = toySwitch.getBoundingClientRect();
-  menu.open(r.left, r.bottom + 6, toyId);
+  menu.open(r.left + r.width / 2, r.top - 8, toyId, { above: true });
 });
 
 const pointer = setupPointer({

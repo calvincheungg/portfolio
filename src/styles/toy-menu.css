@@ -53,22 +53,3 @@
   content: "------------------------------------------------------------------------------------------------------------------------";
 }
 
-/* "Choose a toy": the keyboard way to the menu. Out of sight until it has
-   focus, then shown at the top centre, over the subtitle. */
-.toy-switch {
-  position: fixed;
-  top: 18px;
-  left: 50%;
-  z-index: 11;
-  padding: 2px 0;
-  font-size: 14px;
-  transform: translateX(-50%);
-}
-
-.toy-switch:not(:focus, [aria-expanded="true"]) {
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
